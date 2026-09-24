@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1" name="viewport"/>
+  <title>拍照手札 · 黄锦澜</title>
+  <meta content="黄锦澜的拍照手札：一本贴着照片、随手写几句的手账。封面、照片、关于都在这一页里。" name="description"/>
+  <meta content="黄锦澜" name="author"/>
+  <!-- 手札体 4.9MB，提前预加载，避免打开时才慢吞吞地出现 -->
+  <link href="./乐米拾光手札体.ttf" rel="preload" as="font" type="font/ttf" crossorigin=""/>
+  <link href="./style.css" rel="stylesheet"/>
+</head>
+<body>
+
+  <!-- 手账侧边的索引标签（不是普通水平导航）：点哪一枚就翻到哪一页 -->
+  <nav aria-label="手札索引" class="tabs">
+    <a class="tab" href="#cover">封面</a>
+    <a class="tab" href="#photos">照片</a>
+    <a class="tab" href="#about">关于</a>
+    <a class="tab tab--back" data-home="" href="https://calista-lan.github.io/hjl-lesson/">回主页</a>
+  </nav>
+
+  <main class="book">
+
+    <!-- ============ 第 1 页：封面 ============ -->
+    <section class="page" id="cover">
+      <div class="running-head">
+        <span>拍照手札</span>
+        <span>封面</span>
+      </div>
+
+      <div class="cover-grid">
+        <!-- 左下：书名 / 名字 / 一句想说的话 / 印章 -->
+        <div class="reveal">
+          <h1 class="cover-title">拍照手札</h1>
+          <p class="cover-sub">A NOTEBOOK OF PICTURES</p>
+          <p class="cover-name">黄锦澜</p>
+          <p class="cover-line">（这里写一句你想说的话，写什么都行，长短随意）</p>
+          <p class="stamp">锦澜</p>
+        </div>
+
+        <!-- 右下：三张叠着的照片，像随手放在封面上的 -->
+        <div class="stack" aria-label="封面上的三张照片">
+          <span class="stack-item is-empty" role="img" aria-label="照片待填"></span>
+          <span class="stack-item is-empty" role="img" aria-label="照片待填"></span>
+          <span class="stack-item is-empty" role="img" aria-label="照片待填"></span>
+        </div>
+      </div>
+
+      <p class="cover-scroll"><span></span>往下翻，或者直接点右边的「照片」</p>
+    </section>
+
+    <!-- ============ 第 2 页：照片 ============ -->
+    <section class="page" id="photos">
+      <div class="running-head">
+        <span>拍照手札</span>
+        <span>照片</span>
+      </div>
+
+      <div class="reveal">
+        <h1 class="lead-title">照片</h1>
+        <p class="lead-desc">（这里可以给整个照片页写一句话，也可以整行删掉）</p>
+      </div>
+
+      <!-- 分组由 photos.js 清单生成；点一张照片就在原地摊开成一大张 -->
+      <div id="groups"></div>
+
+      <noscript>
+        <p class="noscript-note">照片清单是用 JavaScript 读出来铺到纸上的。不加载脚本的话照片显示不出来，其他地方的文字照常可读。</p>
+      </noscript>
+    </section>
+
+    <!-- ============ 第 3 页：关于 ============ -->
+    <section class="page" id="about">
+      <div class="running-head">
+        <span>拍照手札</span>
+        <span>关于</span>
+      </div>
+
+      <div class="reveal">
+        <h1 class="lead-title">关于</h1>
+        <p class="lead-desc">（可以在这里写一小段开场，也可以整行删掉）</p>
+      </div>
+
+      <!-- 每一节：手写小标题 + 衬线正文。内容都留着等你填 -->
+      <div class="measure">
+
+        <div class="about-block reveal">
+          <h2>为什么喜欢拍</h2>
+          <p>（写你自己想说的话，多长都行，口语一点更好。）</p>
+          <p class="margin-note">（页边批注：也可以删掉）</p>
+        </div>
+
+        <div class="about-block reveal">
+          <h2>平时拍什么</h2>
+          <p>（路上、家里、旅行、吃的、朋友……想到什么写什么。）</p>
+          <div class="thumbs">
+            <span class="ph" role="img" aria-label="照片待填"></span>
+            <span class="ph" role="img" aria-label="照片待填"></span>
+            <span class="ph" role="img" aria-label="照片待填"></span>
+            <span class="ph" role="img" aria-label="照片待填"></span>
+          </div>
+          <p class="margin-note">（这一排小方块是想放照片的位置，不需要就整块删掉）</p>
+        </div>
+
+        <div class="about-block reveal">
+          <h2>用什么拍</h2>
+          <p>（手机也完全可以写进来，这里不谈器材参数。）</p>
+        </div>
+
+        <div class="about-block reveal">
+          <h2>拍照时的小习惯</h2>
+          <p>（比如总是蹲下来拍、喜欢阴天拍、拍完当天一定整理……）</p>
+        </div>
+
+        <div class="about-block reveal">
+          <h2>联系我</h2>
+          <p>（留一个能找到你的地方就行，一行足矣。）</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="colophon">
+    <p>《拍照手札》· 黄锦澜 · 照片与文字版权归作者所有</p>
+    <p class="no-print">纸色 #f3ead7 · 手写乐米拾光手札体 · 正文 Noto Serif SC</p>
+    <p><a data-home="" href="https://calista-lan.github.io/hjl-lesson/">← 回到个人主页</a></p>
+  </footer>
+
+  <script src="./photos.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

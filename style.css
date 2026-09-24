@@ -1,0 +1,786 @@
+@font-face {
+  font-family: "LeMiShiGuang";
+  src: url("./乐米拾光手札体.ttf") format("truetype");
+  font-display: swap;
+}
+/* ==========================================================================
+   《拍照手札》样式表
+   风格：一本摊开的手账本，照片像随手贴上去的
+   规矩：照片是主角。装饰只出现在照片之外，绝不压在照片上。
+   字体：全站衬线打底，手写体只靠 .hand / 具体元素局部覆盖，
+       绝不给 body 或 * 设手写体。
+   ========================================================================== */
+
+/* ---------- 设计 tokens（与主页完全一致） ---------- */
+:root {
+  /* 纸 */
+  --paper: #f3ead7;        /* 手账本的纸 */
+  --paper-deep: #e8dcc3;   /* 桌面、封面底、页眉 */
+  --paper-edge: #ded0b6;   /* 纸边、极浅描边 */
+  --photo-mat: #fdfaf3;    /* 相纸白（比页面纸白一点，像冲印出来的） */
+  /* 墨 */
+  --ink: #2a2622;
+  --ink-light: #5c554b;
+  --ink-faded: #7d7466;
+  --pencil: #7a746a;       /* 铅笔灰 */
+  --accent: #8c3b2e;       /* 朱红：书签、页码、小标签 */
+  --stamp: #b23a2e;        /* 印章红 */
+  --blue-line: #a9c3d6;    /* 褪色蓝 */
+  --red-margin: #d98b8b;   /* 淡红边注 */
+  --tape: rgba(220, 200, 150, .45);
+  --rule: rgba(42, 38, 34, .16);
+  /* 尺寸 */
+  --measure: 820px;        /* 正文版心（和主页一致） */
+  --spread: 1040px;        /* 照片可以铺到的跨页宽 */
+  --radius: 2px;           /* 全站圆角上限 */
+  /* 纸叠层的阴影：只能是一层纸压一层纸，不是发光 */
+  --shadow: 0 1px 0 rgba(42, 38, 34, .05), 0 6px 16px rgba(42, 38, 34, .05);
+  --shadow-sm: 0 1px 0 rgba(42, 38, 34, .06);
+  /* 字体分层：衬线打底，手写点缀 */
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  --font-hand: "LeMiShiGuang", "Kaiti SC", "STKaiti", "楷体", cursive;
+}
+
+/* ---------- 基础：全站衬线体。手写体一律靠 .hand 局部覆盖 ---------- */
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper-deep);          /* 桌面比纸深一点 */
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 16px;
+  line-height: 1.75;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* 纸纹：一层极淡的噪点，盖整屏但不吃事件（不用于照片上） */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+img { max-width: 100%; }
+
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--rule); }
+a:hover { border-bottom-color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* 手写体：只加在具体元素上，不小于 0.95rem，行距放宽 */
+.hand {
+  font-family: var(--font-hand);
+  font-size: 1.05rem;
+  line-height: 1.9;
+  letter-spacing: .02em;
+}
+
+/* 匿名ish 的大字 */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- 页面纸张 ---------- */
+/* 整本手账是同一个页面里的连续几页纸，页与页之间留一点桌面的缝。
+   注意：.book 不能设成 grid —— grid 轨道会按内容收缩，纸就撑不满版心了 */
+.book {
+  position: relative;
+  z-index: 1;
+}
+
+.page + .page { margin-top: clamp(16px, 2.4vw, 30px); }
+
+.page {
+  position: relative;
+  scroll-margin-top: 18px;      /* 点索引标签跳过来时，别让书眉贴着屏幕顶 */
+  max-width: var(--spread);
+  margin: 0 auto;
+  padding: clamp(28px, 4vw, 56px) clamp(20px, 5vw, 72px) clamp(56px, 7vw, 88px);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--paper-edge);
+  transform: rotate(-.2deg);            /* 纸放歪了一点点 */
+  counter-increment: folio;
+}
+
+/* 页码：CSS 计数器自动生成，和主页用同一套句式 */
+.page::after {
+  content: "— " counter(folio) " —";
+  display: block;
+  margin-top: 48px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: .3em;
+  color: var(--ink-faded);
+}
+
+/* 书眉 */
+.running-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding-bottom: 10px;
+  margin-bottom: clamp(28px, 4vw, 48px);
+  border-bottom: 1px solid var(--rule);
+  font-size: 12px;
+  letter-spacing: .18em;
+  color: var(--ink-faded);
+}
+
+/* 正文版心：给不想占满版宽的文字用 */
+.measure {
+  max-width: var(--measure);
+  margin-inline: auto;
+}
+
+/* ---------- 导航：手账侧边的一叠索引标签 ---------- */
+.tabs {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 12px;
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-right: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.tab {
+  writing-mode: vertical-rl;
+  padding: 12px 7px;
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  background: var(--paper);
+  color: var(--ink-light);
+  font-size: 13px;
+  letter-spacing: .22em;
+  transition: transform .18s ease, color .18s ease, border-color .18s ease;
+}
+
+.tab:hover { transform: translateX(-3px); color: var(--accent); }
+
+.tab[aria-current="page"] {
+  color: var(--accent);
+  border-left: 3px solid var(--accent);
+  background: var(--photo-mat);
+  transform: translateX(-6px);
+}
+
+/* 标签颜色区分：回主页那一枚用褪色蓝 */
+.tab--back { border-bottom-color: var(--blue-line); }
+
+/* ==========================================================================
+   1. 封面
+   ========================================================================== */
+.cover-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: clamp(24px, 4vw, 56px);
+  align-items: end;
+  min-height: 62vh;
+}
+
+.cover-title {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-size: clamp(52px, 9vw, 104px);
+  line-height: 1.15;
+  letter-spacing: .04em;
+  color: var(--ink);
+  /* 印刷错位：油墨没对准，不是发光 */
+  text-shadow: 1px 0 rgba(140, 59, 46, .18);
+}
+
+.cover-sub {
+  margin: 18px 0 0;
+  font-size: 13px;
+  letter-spacing: .3em;
+  color: var(--ink-faded);
+}
+
+.cover-name {
+  margin: 26px 0 0;
+  font-size: 15px;
+  letter-spacing: .16em;
+  color: var(--ink-light);
+}
+
+/* 一句想说的话 */
+.cover-line {
+  margin: 10px 0 0;
+  max-width: 22em;
+  font-family: var(--font-hand);
+  font-size: 1.15rem;
+  line-height: 1.95;
+  color: var(--ink);
+}
+
+/* 封面右下角的三张叠着的照片 */
+.stack {
+  display: grid;
+  width: clamp(150px, 22vw, 220px);
+}
+
+.stack > * { grid-area: 1 / 1; }
+
+.stack-item {
+  background: var(--photo-mat);
+  border: 1px solid var(--paper-edge);
+  box-shadow: var(--shadow);
+  padding: 9px 9px 26px;
+}
+
+.stack-item img { display: block; width: 100%; height: auto; }
+.stack-item.is-empty { min-height: 168px; }
+
+.stack-item:nth-child(1) { transform: rotate(-4.5deg) translate(-24px, 8px); }
+.stack-item:nth-child(2) { transform: rotate(2.5deg) translate(6px, -12px); }
+.stack-item:nth-child(3) { transform: rotate(-1.2deg) translate(30px, 22px); }
+
+/* 印章 */
+.stamp {
+  display: inline-grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  margin-top: 26px;
+  border: 2px solid var(--stamp);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4px var(--stamp);
+  color: var(--stamp);
+  font-family: var(--font-hand);
+  font-size: 1.15rem;
+  line-height: 1.2;
+  text-align: center;
+  opacity: .82;
+  transform: rotate(-6deg);
+}
+
+/* 往下翻的小提示：一条铅笔短线 + 手写 */
+.cover-scroll {
+  margin-top: clamp(32px, 6vw, 64px);
+  font-family: var(--font-hand);
+  font-size: 1rem;
+  color: var(--pencil);
+}
+
+.cover-scroll span {
+  display: inline-block;
+  width: 42px;
+  height: 1px;
+  margin-right: 10px;
+  vertical-align: middle;
+  background: var(--pencil);
+}
+
+/* ==========================================================================
+   2. 照片列表内页
+   ========================================================================== */
+.lead-title {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-size: clamp(34px, 5vw, 52px);
+  line-height: 1.3;
+}
+
+.lead-desc {
+  margin: 14px 0 0;
+  max-width: 32em;
+  color: var(--ink-light);
+  font-size: 15px;
+}
+
+.grp { margin-top: clamp(48px, 7vw, 88px); }
+
+.grp-head { margin-bottom: 26px; }
+
+/* 分组小标签：褪色蓝的一小条纸 */
+.grp-tag {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 2px 9px;
+  background: rgba(169, 195, 214, .28);
+  border: 1px solid var(--blue-line);
+  font-size: 12px;
+  letter-spacing: .2em;
+  color: var(--ink-light);
+  transform: rotate(-.8deg);
+}
+
+.grp-title {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-size: clamp(24px, 3.2vw, 34px);
+  line-height: 1.4;
+}
+
+.grp-desc {
+  margin: 8px 0 0;
+  max-width: 34em;
+  color: var(--ink-faded);
+  font-size: 14px;
+}
+
+/* 照片摊开的一页：不用规整网格，靠不同宽度 + 参差的上边距造成错落 */
+.spread {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;   /* 一行里的照片分贴两端，中间留写作的空白 */
+  gap: clamp(18px, 3vw, 34px);
+}
+
+.plate {
+  position: relative;
+  margin: 0;
+  padding: 10px 10px 30px;
+  background: var(--photo-mat);
+  border: 1px solid var(--paper-edge);
+  box-shadow: var(--shadow);
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform .2s ease;
+}
+
+.plate--l { flex: 0 1 46%; }
+.plate--m { flex: 0 1 32%; }
+.plate--s { flex: 0 1 22%; }
+.plate--drop { margin-top: 38px; }   /* 往下错开一点 */
+.plate--lap { margin-left: -16px; z-index: 2; }  /* 压着旁边那张 */
+
+/* 悬停/聚焦：只抬一点点角度，不放大、不加边框光 */
+.plate:hover,
+.plate:focus-within { transform: rotate(calc(var(--tilt, 0deg) * .4)) translateY(-3px); }
+
+/* 照片本身是个按钮：鼠标点、键盘 Enter / 空格都能摊开 */
+.plate-link {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper-deep);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.plate-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 点一下摊开成一大张：占满整行，照片在左、说明移到右边空白处 */
+.plate.is-open {
+  flex: 0 1 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 40px);
+  align-items: start;
+  padding: 16px 16px 26px;
+  /* 摊开看的时候纸摆正。注意：--tilt 是 JS 写在行内的，改不动，
+     所以这里直接用 transform 覆盖（两个类，优先级比单 .plate 高） */
+  transform: rotate(0deg);
+  z-index: 6;
+}
+
+.plate.is-open .plate-link { grid-column: 1; }
+.plate.is-open figcaption { grid-column: 2; }
+
+.plate.is-open figcaption {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 6px;
+}
+
+.plate.is-open .meta { font-size: 13px; letter-spacing: .14em; }
+
+.plate.is-open .note {
+  margin-top: 10px;
+  font-size: 1.2rem;
+  line-height: 2;
+}
+
+/* 小提示：点开看大图 / 点一下收起 */
+.plate .hint {
+  display: block;
+  margin-top: 14px;
+  font-size: 12px;
+  letter-spacing: .16em;
+  color: var(--pencil);
+}
+
+.plate.is-open .hint {
+  margin-top: 22px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+/* 圈注只在摊开的时候出现：小照片上不画圈，免得挤 */
+.plate:not(.is-open) .looped { padding: 0; display: block; }
+.plate:not(.is-open) .looped::before,
+.plate:not(.is-open) .looped::after { display: none; }
+
+.plate.is-open .looped { margin-top: 6px; }
+
+/* ★ 硬约束：照片本体不做任何处理 —— 不许加滤镜、透明度、混合模式、纹理 */
+.plate-link img,
+.plate-link .ph {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 0;
+  filter: none;
+  opacity: 1;
+  mix-blend-mode: normal;
+}
+
+.plate figcaption {
+  padding: 12px 2px 0;
+  border-top: 1px solid var(--rule);
+  margin-top: 10px;
+}
+
+.plate .meta {
+  display: block;
+  font-size: 12px;
+  letter-spacing: .1em;
+  color: var(--ink-faded);
+}
+
+.plate .note {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-hand);
+  font-size: 1rem;
+  line-height: 1.85;
+  color: var(--ink);
+}
+
+/* ---------- 固定件：胶带 / 相角 / 回形针 ---------- */
+.fix { position: absolute; pointer-events: none; }
+
+.fix--tape {
+  top: -9px;
+  left: 22px;
+  width: 68px;
+  height: 20px;
+  background: var(--tape);
+  border-left: 1px solid rgba(255, 255, 255, .5);
+  border-right: 1px solid rgba(255, 255, 255, .5);
+  transform: rotate(-4deg);
+}
+
+.fix--corner {
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-top: 30px solid var(--paper-edge);
+  border-left: 30px solid transparent;
+}
+
+.fix--clip {
+  top: -14px;
+  right: 26px;
+  width: 16px;
+  height: 44px;
+  border: 2px solid var(--pencil);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  transform: rotate(6deg);
+}
+
+/* ---------- 占位：纯纸色块 + 一行「待填」 ---------- */
+.ph {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  aspect-ratio: 4 / 3;
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-edge);
+  color: var(--ink-faded);
+  font-size: 13px;
+  letter-spacing: .2em;
+}
+
+.ph::after { content: "待填"; }
+
+.is-empty {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  aspect-ratio: 4 / 3;
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-edge);
+  color: var(--ink-faded);
+  font-size: 13px;
+}
+
+.is-empty::after { content: "待填"; }
+
+/* ==========================================================================
+   3. 单张照片页
+   ========================================================================== */
+.plate-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 52px);
+  align-items: start;
+}
+
+.big {
+  margin: 0;
+  padding: 14px 14px 40px;
+  background: var(--photo-mat);
+  border: 1px solid var(--paper-edge);
+  box-shadow: var(--shadow);
+  transform: rotate(-.6deg);
+}
+
+.big img { display: block; width: 100%; height: auto; filter: none; opacity: 1; }
+
+.side { padding-top: 8px; }
+
+.side .meta {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  letter-spacing: .12em;
+  color: var(--ink-faded);
+}
+
+.side .place {
+  margin: 0 0 22px;
+  font-size: 17px;
+  color: var(--ink-light);
+}
+
+.side .note {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-size: 1.2rem;
+  line-height: 2;
+  color: var(--ink);
+}
+
+/* 铅笔圈注：给一句心情随手圈一下。
+   两道弧线错开一点 = 手画的复笔，不是圆规画的正圆 */
+.looped { position: relative; display: inline-block; max-width: 100%; padding: 12px 10px; }
+
+.looped::before {
+  content: "";
+  position: absolute;
+  inset: -3px -9px -5px -7px;
+  border: 1.4px solid var(--pencil);
+  border-radius: 52% 48% 46% 54% / 64% 56% 44% 36%;
+  opacity: .55;
+  transform: rotate(-1.6deg);
+}
+
+.looped::after {
+  content: "";
+  position: absolute;
+  inset: -1px -13px -2px -5px;
+  border: 1px solid var(--pencil);
+  border-radius: 48% 52% 58% 42% / 52% 44% 56% 48%;
+  opacity: .26;
+  transform: rotate(1.3deg);
+}
+
+/* 上一张 / 下一张 */
+.turn {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: clamp(36px, 5vw, 60px);
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+  font-size: 14px;
+}
+
+.turn a { border-bottom: 0; }
+.turn .disabled { color: var(--ink-faded); border: 0; cursor: default; }
+
+/* ==========================================================================
+   4. 关于 + 版权页
+   ========================================================================== */
+.about-block { margin-top: clamp(34px, 5vw, 56px); }
+
+.about-block h2 {
+  margin: 0 0 14px;
+  font-family: var(--font-hand);
+  font-size: clamp(21px, 2.6vw, 27px);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.about-block p { margin: 0 0 12px; max-width: 34em; color: var(--ink-light); }
+
+/* 页边批注 */
+.margin-note {
+  margin: 14px 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--red-margin);
+  font-family: var(--font-hand);
+  font-size: 1rem;
+  line-height: 1.9;
+  color: var(--ink-faded);
+}
+
+/* 平时拍的：一排小方块 */
+.thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.thumbs .ph { width: 84px; min-height: 84px; aspect-ratio: 1 / 1; }
+
+/* 版权页 */
+.colophon {
+  max-width: var(--spread);
+  margin: 0 auto;
+  padding: 26px clamp(20px, 5vw, 72px) 40px;
+  font-size: 13px;
+  color: var(--ink-faded);
+}
+
+.colophon p { margin: 0 0 6px; }
+
+/* ==========================================================================
+   动效：只由交互触发，且随时可关
+   ========================================================================== */
+.reveal {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.reveal.in {
+  opacity: 1;
+  transform: none;
+  transition: opacity .5s ease, transform .5s ease;
+}
+
+.noscript-note {
+  margin-top: 24px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  font-size: 14px;
+  color: var(--ink-light);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal,
+  .reveal.in { opacity: 1; transform: none; transition: none; }
+  .tab,
+  .plate,
+  .stack-item,
+  .stamp { transition: none; transform: none; }
+  .stack-item:nth-child(1),
+  .stack-item:nth-child(2),
+  .stack-item:nth-child(3) { transform: none; }
+  .plate:hover,
+  .plate:focus-within { transform: rotate(var(--tilt, 0deg)); }
+}
+
+/* ==========================================================================
+   响应式
+   ========================================================================== */
+@media (min-width: 1100px) {
+  body { padding-right: 96px; }   /* 给右侧索引标签让出位置 */
+}
+
+@media (max-width: 1099px) {
+  /* 标签落到页顶，变成一条横向的索引条 */
+  .tabs {
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: auto;
+    transform: none;
+    flex-direction: row;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .tab { writing-mode: horizontal-tb; padding: 7px 14px; letter-spacing: .12em; }
+  .tab:hover { transform: none; }
+  .tab[aria-current="page"] { transform: none; border-left: 1px solid var(--rule); border-bottom: 3px solid var(--accent); }
+}
+
+@media (max-width: 900px) {
+  .cover-grid { grid-template-columns: 1fr; align-items: start; }
+  /* 叠照往右让一下，抵消第一张向左的位移，不然会被裁到纸外 */
+  .stack { justify-self: start; margin-left: 28px; }
+  /* 窄屏摊开后上下排：照片在上，说明在下 */
+  .plate.is-open { grid-template-columns: 1fr; gap: 14px; }
+  .plate.is-open figcaption { grid-column: 1; border-top: 1px solid var(--rule); margin-top: 4px; padding-top: 12px; }
+}
+
+@media (max-width: 1099px) {
+  /* 窄屏上纸不斜：一斜就会露出左右各几像素，手机上会出现横向滚动条 */
+  .page { transform: none; }
+}
+
+@media (max-width: 720px) {
+  /* 手机上照片一律通栏、放正：小屏幕再歪就不好看了 */
+  .plate--l, .plate--m, .plate--s { flex: 0 1 100%; }
+  .plate--drop { margin-top: 0; }
+  .plate--lap { margin-left: 0; }
+  /* 手机上照片一律放正：--tilt 是行内样式改不动，直接覆盖 transform */
+  .plate { transform: rotate(0deg); }
+  .spread { gap: 26px; }
+}
+
+/* ==========================================================================
+   打印：整理成能装订的手账页
+   ========================================================================== */
+@media print {
+  body { background: #fff; padding: 0; }
+  body::before { display: none; }
+  .tabs, .cover-scroll, .turn, .colophon .no-print { display: none; }
+  .page {
+    max-width: none;
+    margin: 0;
+    box-shadow: none;
+    border: 0;
+    transform: none;
+    padding: 0;
+    page-break-after: always;
+  }
+  .page::after { margin-top: 20px; }
+  .grp { break-inside: avoid; page-break-inside: avoid; }
+  .plate, .big {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none;
+    max-width: 72%;
+  }
+  .plate img, .big img { max-height: 58vh; }
+  /* 打印时摊开的那张也按上下排 */
+  .plate.is-open { grid-template-columns: 1fr; gap: 12px; }
+  .plate.is-open figcaption { grid-column: 1; }
+  .plate .hint { display: none; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 11px; color: #666; }
+  .reveal { opacity: 1; transform: none; }
+}
