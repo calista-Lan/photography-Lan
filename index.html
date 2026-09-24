@@ -123,6 +123,37 @@
 
   </main>
 
+  <!-- 贴照片：把新照片传到 Cloudinary，拿到链接后粘进 photos.js（默认折叠，要口令） -->
+  <details class="paste no-print" id="paste">
+    <summary>贴一张新照片</summary>
+    <div class="paste-body">
+      <p class="paste-tip">选照片 → 传上去 → 复制下面那几行，粘进 <code>photos.js</code> 里对应的分组。</p>
+
+      <form class="paste-gate" id="paste-gate">
+        <label for="paste-code">口令</label>
+        <input id="paste-code" type="password" autocomplete="off" placeholder="（只有你自己知道）"/>
+        <button type="submit">进来</button>
+        <p class="paste-msg" id="paste-msg" role="status"></p>
+      </form>
+
+      <div class="paste-tool" id="paste-tool" hidden>
+        <p class="paste-row">
+          <label class="paste-file">选照片<input id="paste-files" type="file" accept="image/*" multiple/></label>
+          <button id="paste-go" type="button">传上去</button>
+        </p>
+        <ul class="paste-list" id="paste-list"></ul>
+        <div class="paste-out" id="paste-out" hidden>
+          <p class="paste-out-title">复制这些，粘进 photos.js</p>
+          <textarea id="paste-code-out" rows="5" readonly spellcheck="false"></textarea>
+          <p class="paste-row">
+            <button id="paste-copy" type="button">复制全部</button>
+            <span class="paste-msg" id="paste-copy-msg" role="status"></span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </details>
+
   <footer class="colophon">
     <p>《拍照手札》· 黄锦澜 · 照片与文字版权归作者所有</p>
     <p class="no-print">纸色 #f3ead7 · 手写乐米拾光手札体 · 正文 Noto Serif SC</p>
@@ -131,5 +162,6 @@
 
   <script src="./photos.js"></script>
   <script src="./app.js"></script>
+  <script src="./upload.js"></script>
 </body>
 </html>

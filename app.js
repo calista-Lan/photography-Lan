@@ -64,8 +64,17 @@
     });
   });
 
-  function picUrl(slug, w) {
-    return "photos/" + slug + "-" + w + ".jpg";
+  /* 图片地址：清单里写了 src（云端直传回来的链接）就用它，
+     没写就按老规矩去 photos/<slug>-<宽>.jpg 找本地文件 */
+  function picUrl(p, w) {
+    if (p.src) return sized(p.src, w);
+    return "photos/" + p.slug + "-" + w + ".jpg";
+  }
+
+  /* Cloudinary 的链接可以就地插一段尺寸参数：只缩放 + 压缩，不动画面色彩 */
+  function sized(url, w) {
+    if (!/res\.cloudinary\.com\/.+\/image\/upload\//.test(url)) return url;
+    return url.replace("/image/upload/", "/image/upload/c_scale,w_" + w + ",q_auto/");
   }
 
   /* 照片铺开的节奏：宽度三档轮流、倾角大部分是 0，只有少数歪一点 */
@@ -91,12 +100,12 @@
     btn.setAttribute("aria-expanded", "false");
     btn.setAttribute("aria-label", "看大图：" + ([p.place, p.time].filter(Boolean).join("，") || "照片"));
 
-    if (p.slug) {
+    if (p.slug || p.src) {
       var img = document.createElement("img");
       img.loading = "lazy";
       img.decoding = "async";
-      img.src = picUrl(p.slug, 800);
-      img.srcset = picUrl(p.slug, 800) + " 800w, " + picUrl(p.slug, 1600) + " 1600w";
+      img.src = picUrl(p, 800);
+      img.srcset = picUrl(p, 800) + " 800w, " + picUrl(p, 1600) + " 1600w";
       img.sizes = "(max-width: 720px) 92vw, 46vw";
       img.setAttribute("data-sizes-small", img.sizes);
       img.alt = [p.place, p.time].filter(Boolean).join("，") || "照片，说明待填";

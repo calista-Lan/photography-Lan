@@ -755,6 +755,88 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 /* ==========================================================================
    打印：整理成能装订的手账页
    ========================================================================== */
+/* ==========================================================================
+   贴照片工具：页面最底下那一小块，默认折叠
+   ========================================================================== */
+.paste {
+  max-width: var(--measure);
+  margin: 0 auto 30px;
+  padding: 0 20px;
+}
+.paste > summary {
+  padding: 9px 0;
+  font-family: var(--font-hand);
+  font-size: 17px;
+  color: var(--ink-light);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  transform: rotate(-0.3deg);
+  cursor: pointer;
+  list-style: none;
+}
+.paste > summary::-webkit-details-marker { display: none; }
+.paste > summary::before { content: "+ "; font-family: var(--font-serif); color: var(--pencil); }
+.paste[open] > summary::before { content: "- "; }
+.paste-body {
+  margin-top: 14px;
+  padding: 15px 18px 18px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+.paste-tip, .paste-out-title { margin: 0 0 12px; font-size: 13px; color: var(--ink-light); line-height: 1.8; }
+.paste-tip code { padding: 1px 4px; background: var(--paper-deep); font-family: var(--font-serif); }
+.paste-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 10px; }
+.paste-gate label { font-size: 13px; color: var(--ink-light); }
+.paste input[type="password"], .paste textarea {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+.paste textarea { width: 100%; font-size: 12px; line-height: 1.8; resize: vertical; }
+.paste button {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper-deep);
+  border: 1px solid var(--pencil);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.paste button:hover { color: var(--accent); border-color: var(--accent); }
+.paste button:disabled { color: var(--ink-faded); border-color: var(--rule); cursor: default; }
+.paste-file { font-size: 13px; color: var(--ink-light); border-bottom: 1px dashed var(--pencil); cursor: pointer; }
+.paste-file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.paste-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.paste-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 54px;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--ink-light);
+}
+.paste-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.paste-bar { display: block; height: 3px; background: rgba(42, 38, 34, .10); }
+.paste-bar i { display: block; width: 0; height: 100%; background: var(--pencil); }
+.paste-state { text-align: right; }
+.paste-list .is-done .paste-state { color: var(--accent); }
+.paste-list .is-bad .paste-state { color: var(--stamp); }
+.paste-err { grid-column: 1 / -1; font-size: 12px; color: var(--stamp); }
+.paste-out { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--rule); }
+.paste-msg { margin: 6px 0 0; font-size: 12px; color: var(--stamp); }
+
+@media (max-width: 720px) {
+  .paste-list li { grid-template-columns: minmax(0, 1fr) 54px; }
+  .paste-bar { grid-column: 1 / -1; }
+}
+
 @media print {
   body { background: #fff; padding: 0; }
   body::before { display: none; }
