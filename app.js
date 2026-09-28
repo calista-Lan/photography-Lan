@@ -419,6 +419,21 @@
     loadCloudPhotos();
   }
 
+  /* 云端清单读不出来的时候留一行小字 —— 原来是完全静默的，
+     传了照片却看不到、又没有任何提示，最容易让人以为照片丢了 */
+  var cloudNote = null;
+  function noteCloudFail(status) {
+    if (!groupsBox || cloudNote) return;
+    /* 访客（没输过上传口令）且页面本来就有真照片 → 不打扰，什么都不加 */
+    var owner = false;
+    try { owner = !!(window.sessionStorage && sessionStorage.getItem("hjl-photo-paste-ok") === "1"); } catch (e) {}
+    if (!owner && document.querySelectorAll(".cell.has-pic").length) return;
+    cloudNote = el("p", "wall-note", status === 401
+      ? "云端的照片没读出来：Cloudinary 后台 Settings → Security → Restricted image types 里的 Resource list 还勾着。取消勾选、Save，一分钟后再刷一次。"
+      : "云端的照片没读出来（可能是断网）。现在显示的是本地清单。");
+    groupsBox.insertBefore(cloudNote, groupsBox.firstChild);
+  }
+
   /* ---- 云端照片：读 Cloudinary 的「按标签列出全部资源」清单 ----
      需要后台把 Settings → Security → Restricted image types 里的 Resource list
      取消勾选。取不到（没开开关 / 断网 / 还没传过）就安静退回本地清单。 */
@@ -431,12 +446,13 @@
     xhr.open("GET", host + "/image/list/" + encodeURIComponent(UP.tag) + ".json", true);
     xhr.timeout = 12000;
 
+    /* 超时 / 断网也会走到 onloadend，status 是 0 */
     xhr.onloadend = function () {
-      if (xhr.status !== 200) return;
+      if (xhr.status !== 200) { noteCloudFail(xhr.status); return; }
       var data = null;
-      try { data = JSON.parse(xhr.responseText); } catch (e) { return; }
+      try { data = JSON.parse(xhr.responseText); } catch (e) { noteCloudFail(xhr.status); return; }
       var res = (data && data.resources) || [];
-      if (!res.length) return;
+      if (!res.length) return;   /* 清单是空的：还没传过照片，不算出错，不提示 */
 
       var pics = res.map(fromCloud).filter(function (p) { return !!p.src; });
       pics.sort(function (a, b) { return (b.created || "").localeCompare(a.created || ""); });
