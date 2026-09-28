@@ -25,8 +25,8 @@
 
   /* ============ 你只需要改这一段 ============ */
   var CONFIG = {
-    cloudName: "",                 /* ← Cloud Name，例如 "dabc12xyz" */
-    uploadPreset: "",              /* ← 第 ③ 步建的 unsigned preset 名字 */
+    cloudName: "KPVs88E6",                 /* ← Cloud Name，例如 "dabc12xyz" */
+    uploadPreset: "个人摄影网站",              /* ← 第 ③ 步建的 unsigned preset 名字 */
     folder: "photo-notebook",      /* ← 照片归到哪个文件夹，留空就是根目录 */
     passcode: "hjl-photo"          /* ← 改成你自己的口令 */
   };
