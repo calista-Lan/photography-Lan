@@ -1,222 +1,285 @@
 /* ==========================================================================
-   《拍照手札》脚本（单页版）
-   整本手账就一个页面：封面 → 照片 → 关于 → 版权页，靠右边的索引标签翻。
-   只做五件事：
-     ① 把 photos.js 清单渲染成相纸
-     ② 点一张照片 → 就在原地摊开成一大张（再点收起）
-     ③ 索引标签按滚动位置高亮
-     ④ 滚动入场（可由 prefers-reduced-motion 关掉）
-     ⑤ 回主页的链接统一填地址
+   《拍照手札》脚本
+   --------------------------------------------------------------------------
+   只做八件事：
+     ① 把 photos.js 清单、以及云端传上来的照片渲染成照片墙
+     ② 把最新的一张照片铺成封面，右上角算出照片跨越的年份
+     ③ 点一张照片 → 全屏大图（←/→ 翻，Esc 关，手机上左右滑）
+     ④ 顶栏导航按滚动位置高亮
+     ⑤ 滚动淡入（只播一次，可由 prefers-reduced-motion 关掉）
+     ⑥ 云端清单取不到时，安静退回本地清单（不报错、不留空白）
+     ⑦ 本地图片缺 1600 那一档时自动退回 800，两档都没有才显示占位块
+     ⑧ 页脚年份、返回封面 / 浏览画廊 / 返回顶部
    没有任何自动播放的动画，没有外部依赖。
    ========================================================================== */
 (function () {
   "use strict";
 
-  var HOME_URL = "https://calista-lan.github.io/hjl-lesson/";
-  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var reduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
-    if (text != null) n.textContent = text;      /* 一律用 textContent，防注入 */
+    if (text != null) n.textContent = text;   /* 一律 textContent，防注入 */
     return n;
   }
 
-  /* ================= 1. 索引标签：翻到哪一页就高亮哪一枚 ================= */
-  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab[href^='#']"));
-  var secs = tabs.map(function (t) { return document.querySelector(t.getAttribute("href")); });
-
-  function spy() {
-    /* 取「已经滚过页面上方 35% 这条线」的最后一节 */
-    var line = window.innerHeight * 0.35;
-    var best = 0, bestTop = -Infinity;
-    secs.forEach(function (s, i) {
-      if (!s) return;
-      var top = s.getBoundingClientRect().top;
-      if (top <= line && top > bestTop) { bestTop = top; best = i; }
-    });
-    tabs.forEach(function (t, i) {
-      if (i === best) t.setAttribute("aria-current", "page");
-      else t.removeAttribute("aria-current");
-    });
-  }
-
-  /* 节流用定时器，不用 requestAnimationFrame —— 万一 rAF 不回调（无头浏览器、
-     后台标签页），高亮就永远卡在第一个标签上了 */
-  var spyTimer = null;
-  function onScroll() {
-    if (spyTimer) return;
-    spyTimer = setTimeout(function () { spyTimer = null; spy(); }, 60);
-  }
-  window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", onScroll);
-  spy();
-
-  /* ================= 2. 读清单 ================= */
+  /* ================= 1. 清单与图片地址 ================= */
   var DATA = (window.HJL_PHOTOS && window.HJL_PHOTOS.groups) || [];
-  var flat = [];
 
-  DATA.forEach(function (g, gi) {
-    (g.photos || []).forEach(function (p, pi) {
-      p._id = "p" + (gi + 1) + "-" + (pi + 1);   /* 稳定的编号，例如 p1-2 */
-      p._gi = gi;
-      flat.push(p);
-    });
-  });
-
-  /* 图片地址：清单里写了 src（云端直传回来的链接）就用它，
-     没写就按老规矩去 photos/<slug>-<宽>.jpg 找本地文件 */
   function picUrl(p, w) {
-    if (p.src) return sized(p.src, w);
+    if (p.src) return sized(p.src, w);        /* 云端链接：就地插尺寸参数 */
     return "photos/" + p.slug + "-" + w + ".jpg";
   }
 
-  /* Cloudinary 的链接可以就地插一段尺寸参数：只缩放 + 压缩，不动画面色彩 */
+  /* Cloudinary 的链接可以插 c_scale + q_auto：只缩放和压缩，不动画面色彩 */
   function sized(url, w) {
     if (!/res\.cloudinary\.com\/.+\/image\/upload\//.test(url)) return url;
     return url.replace("/image/upload/", "/image/upload/c_scale,w_" + w + ",q_auto/");
   }
 
-  /* 照片铺开的节奏：宽度三档轮流、倾角大部分是 0，只有少数歪一点 */
-  var SIZES = ["l", "m", "s", "m", "l", "s"];
-  var TILTS = [0, -1.6, 0.9, 0, -2.1, 0.7];
-  var FIXES = ["tape", "corner", "clip"];
+  /* 云端的两档尺寸一定存在，可以直接给 srcset；
+     本地文件不一定做了 1600 那一档，所以只给 800，失败再说 */
+  function fillImg(img, p, w, sizes) {
+    img.removeAttribute("srcset");
+    img.sizes = sizes || "";
+    img.src = picUrl(p, w);
+    if (p.src) img.srcset = picUrl(p, 800) + " 800w, " + picUrl(p, 1600) + " 1600w";
+  }
 
-  /* ================= 3. 生成一张相纸 ================= */
-  function makePlate(p, idx) {
-    var fig = el("figure", "plate plate--" + (p.size || SIZES[idx % SIZES.length]) + " reveal");
-    if (idx % 2 === 1) fig.classList.add("plate--drop");   /* 往下错开 */
-    if (idx % 5 === 3) fig.classList.add("plate--lap");    /* 压着旁边那张 */
-    fig.style.setProperty("--tilt", (TILTS[idx % TILTS.length] || 0) + "deg");
+  /* ================= 2. 照片墙 ================= */
+  /* 跟 CSS 里 --photo-w 对齐：宽屏封顶 340，中间档按列宽估，窄屏两列各约 46vw */
+  var GRID_SIZES = "(max-width: 900px) 46vw, (max-width: 1300px) 28vw, 340px";
 
-    /* 固定件：胶带 / 相角 / 回形针，轮流用 */
-    var fix = el("span", "fix fix--" + FIXES[idx % FIXES.length]);
-    fix.setAttribute("aria-hidden", "true");
-    fig.appendChild(fix);
+  /* 分组下面那一行 date: —— 有拍摄时间就写时间跨度，没有就写张数。
+     组名本身已经是「2026.09」这种时候，就别再重复一遍，改报张数 */
+  function dateLineOf(title, photos) {
+    var seen = [], times = [];
+    (photos || []).forEach(function (p) {
+      var t = (p.time || "").trim();
+      if (!t) return;
+      var key = t.slice(0, 7);
+      if (seen.indexOf(key) < 0) { seen.push(key); times.push(t); }
+    });
+    var n = (photos || []).filter(function (p) { return !!(p.src || p.slug); }).length;
+    if (times.length === 1 && title && title.indexOf(seen[0]) >= 0) return n + " 张";
+    if (times.length) return times.join(" / ");
+    return n ? n + " 张" : "";
+  }
 
-    /* 照片本体：用 button 好让键盘也能打开（Enter / 空格） */
-    var btn = el("button", "plate-link");
+  function makeCell(p, i, groupTitle) {
+    /* 两列错落：单数往里缩，双数往外让（缩多少写在 CSS 里，窄屏自动取消） */
+    var fig = el("figure", "cell reveal " + (i % 2 === 0 ? "a" : "b"));
+    fig.__grp = groupTitle || "";
+
+    /* 没填 slug 也没 src：一块占位纸，不参与大图浏览 */
+    if (!p.slug && !p.src) {
+      fig.classList.add("is-empty");
+      var ph = el("div", "thumb");
+      ph.appendChild(el("span", "ph", "待填"));
+      fig.appendChild(ph);
+      return fig;
+    }
+
+    fig.classList.add("has-pic");
+    fig.__p = p;
+
+    var btn = el("button", "thumb");
     btn.type = "button";
-    btn.setAttribute("aria-expanded", "false");
     btn.setAttribute("aria-label", "看大图：" + ([p.place, p.time].filter(Boolean).join("，") || "照片"));
 
-    if (p.slug || p.src) {
-      var img = document.createElement("img");
-      img.loading = "lazy";
-      img.decoding = "async";
-      img.src = picUrl(p, 800);
-      img.srcset = picUrl(p, 800) + " 800w, " + picUrl(p, 1600) + " 1600w";
-      img.sizes = "(max-width: 720px) 92vw, 46vw";
-      img.setAttribute("data-sizes-small", img.sizes);
-      img.alt = [p.place, p.time].filter(Boolean).join("，") || "照片，说明待填";
-      /* 图片没找到就退回纸色占位块 */
-      img.addEventListener("error", function () {
-        btn.classList.add("is-empty");
-        if (img.parentNode) img.parentNode.removeChild(img);
-      });
-      btn.appendChild(img);
-    } else {
-      btn.classList.add("is-empty");
-    }
+    var img = document.createElement("img");
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.alt = [p.place, p.time].filter(Boolean).join("，") || "照片";
+    fillImg(img, p, 800, GRID_SIZES);
+
+    /* 第一次失败：本地图可能只做了 800 这一档，退回单档再试一次 */
+    var retried = false;
+    img.addEventListener("error", function () {
+      if (!retried && !p.src) {
+        retried = true;
+        img.removeAttribute("srcset");
+        img.sizes = "";
+        img.src = picUrl(p, 800);
+        return;
+      }
+      /* 还是失败：换成占位块，并且不再让它出现在大图里 */
+      fig.classList.remove("has-pic");
+      fig.classList.add("is-empty");
+      delete fig.__p;
+      if (btn.parentNode) btn.parentNode.removeChild(btn);
+      var fallback = el("div", "thumb");
+      fallback.appendChild(el("span", "ph", "待填"));
+      fig.insertBefore(fallback, fig.firstChild);
+      updateHero();          /* 封面正好是这张的话，换一张 */
+    });
+
+    btn.appendChild(img);
     fig.appendChild(btn);
 
-    /* 相纸下方的说明：时间地点用衬线，一句心情用手写（摊开后会被铅笔圈一下） */
-    var cap = el("figcaption");
-    cap.appendChild(el("span", "meta",
-      [p.time, p.place].filter(Boolean).join(" · ") || "（时间与地点待填）"));
+    /* 缩略图下只留一句心情；时间地点留给大图那两栏 */
+    if (p.note) {
+      var cap = el("figcaption", "cap");
+      cap.appendChild(el("p", "c-note", p.note));
+      fig.appendChild(cap);
+    }
 
-    var box = el("div", "looped");
-    box.appendChild(el("span", "note", p.note || "（一句心情待填）"));
-    cap.appendChild(box);
-
-    cap.appendChild(el("span", "hint", "点开看大图"));
-    fig.appendChild(cap);
-
-    btn.addEventListener("click", function () { toggle(fig); });
+    btn.addEventListener("click", function () { openLb(fig); });
     return fig;
   }
 
-  /* ================= 4. 摊开 / 收起（同一时刻只摊开一张） ================= */
-  var opened = null;
+  function addGroup(opt) {
+    var sec = el("section", "grp");
 
-  function setOpen(fig, on) {
-    var btn = fig.querySelector(".plate-link");
-    var hint = fig.querySelector(".hint");
-    var img = fig.querySelector("img");
-
-    fig.classList.toggle("is-open", on);
-    if (btn) btn.setAttribute("aria-expanded", on ? "true" : "false");
-    if (hint) hint.textContent = on ? "点一下收起" : "点开看大图";
-    /* 摊开后占的版面宽了，告诉浏览器可以换大图 */
-    if (img) {
-      if (on) {
-        img.sizes = "(max-width: 900px) 92vw, 60vw";
-      } else if (img.getAttribute("data-sizes-small")) {
-        img.sizes = img.getAttribute("data-sizes-small");
-      }
-    }
-  }
-
-  function toggle(fig) {
-    var willOpen = !fig.classList.contains("is-open");
-    if (opened && opened !== fig) setOpen(opened, false);   /* 手账一次只摊开一页 */
-    setOpen(fig, willOpen);
-    opened = willOpen ? fig : null;
-
-    /* 摊开后把它挪到眼前，不然大图可能露在屏幕外面。
-       关掉动效的机器就别平滑滚了，直接定位 */
-    if (willOpen) {
-      try {
-        fig.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
-      } catch (e) {
-        fig.scrollIntoView();
-      }
-    }
-  }
-
-  /* Esc 收起 */
-  document.addEventListener("keydown", function (e) {
-    if ((e.key === "Escape" || e.key === "Esc") && opened) {
-      setOpen(opened, false);
-      opened = null;
-    }
-  });
-
-  /* ================= 5. 把分组渲染出来 ================= */
-  var groupsBox = document.getElementById("groups");
-  if (groupsBox) {
-    DATA.forEach(function (g, gi) {
-      var sec = el("section", "grp");
-      sec.id = "group-" + (gi + 1);
-
-      var head = el("header", "grp-head reveal");
-      head.appendChild(el("p", "grp-tag", "第 " + (gi + 1) + " 组"));
-      head.appendChild(el("h2", "grp-title", g.title || "（分组标题待填）"));
-      head.appendChild(el("p", "grp-desc", g.desc || "（这个分组的一句话说明待填）"));
-      sec.appendChild(head);
-
-      var spread = el("div", "spread");
-      (g.photos || []).forEach(function (p) {
-        /* 用全站序号决定宽窄与倾角，这样跨组也是错落的，不会每组都长一个样 */
-        spread.appendChild(makePlate(p, flat.indexOf(p)));
+    var head = el("header", "grp-head reveal");
+    head.appendChild(el("h3", "grp-title", opt.title));
+    var dl = dateLineOf(opt.title, opt.photos);
+    if (dl) head.appendChild(el("p", "grp-date", "date: " + dl));
+    if (opt.desc) {
+      var intro = el("div", "grp-desc");
+      String(opt.desc).split("\n").forEach(function (line) {
+        intro.appendChild(el("p", null, line));
       });
-      sec.appendChild(spread);
-      groupsBox.appendChild(sec);
+      head.appendChild(intro);
+    }
+    sec.appendChild(head);
+
+    var grid = el("div", "grid");
+    var shown = 0;
+    (opt.photos || []).forEach(function (p) {
+      grid.appendChild(makeCell(p, shown++, opt.title));
+    });
+    sec.appendChild(grid);
+    return sec;
+  }
+
+  /* ================= 3. 全屏大图 ================= */
+  var lb = document.getElementById("lb");
+  var lbImg = document.getElementById("lb-img");
+  var lbTitle = document.getElementById("lb-title");
+  var lbNote = document.getElementById("lb-note");
+  var lbTime = document.getElementById("lb-time");
+  var lbPlace = document.getElementById("lb-place");
+  var lbX = document.getElementById("lb-x");
+  var lbPrev = document.getElementById("lb-prev");
+  var lbNext = document.getElementById("lb-next");
+  var current = -1;
+  var lastFocus = null;
+  var curP = null;
+  var curW = 1600;
+  var swiped = false;
+
+  /* 大图里也一样：本地图缺 1600 就退回 800 */
+  if (lbImg) {
+    lbImg.addEventListener("error", function () {
+      if (curP && !curP.src && curW > 800) {
+        curW = 800;
+        lbImg.src = picUrl(curP, 800);
+      }
+    });
+  }
+
+  /* 大图的可浏览序列＝当前 DOM 里有真照片的格子，顺序和页面一致 */
+  function picCells() {
+    return Array.prototype.slice.call(document.querySelectorAll(".cell.has-pic"));
+  }
+
+  function renderLb(i) {
+    if (!lb || !lbImg) return;
+    var list = picCells();
+    if (!list.length) return;
+    if (i < 0) i = list.length - 1;
+    if (i >= list.length) i = 0;
+    current = i;
+
+    var cell = list[i];
+    var p = cell.__p || {};
+    curP = p;
+    curW = 1600;
+    fillImg(lbImg, p, 1600, "92vw");
+    lbImg.alt = [p.place, p.time].filter(Boolean).join("，") || "照片";
+
+    /* 上一行：这张照片属于哪一组。下面两栏：时间 / 地点。中间：一句心情 */
+    if (lbTitle) lbTitle.textContent = cell.__grp || "";
+    if (lbNote) {
+      if (p.note) { lbNote.textContent = p.note; lbNote.hidden = false; }
+      else { lbNote.textContent = ""; lbNote.hidden = true; }
+    }
+    if (lbTime) lbTime.textContent = p.time || "—";
+    if (lbPlace) lbPlace.textContent = p.place || "—";
+
+    var many = list.length > 1;
+    if (lbPrev) lbPrev.hidden = !many;
+    if (lbNext) lbNext.hidden = !many;
+  }
+
+  function openLb(fig) {
+    if (!lb || lb.hidden === false) return;
+    var i = picCells().indexOf(fig);
+    if (i < 0) return;
+    lastFocus = document.activeElement;
+    renderLb(i);
+    lb.hidden = false;
+    document.documentElement.classList.add("lb-open");
+    if (lbX) lbX.focus();
+  }
+
+  function closeLb() {
+    if (!lb || lb.hidden) return;
+    lb.hidden = true;
+    document.documentElement.classList.remove("lb-open");
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    lastFocus = null;
+    current = -1;
+  }
+
+  if (lbX) lbX.addEventListener("click", closeLb);
+  if (lbPrev) lbPrev.addEventListener("click", function () { renderLb(current - 1); });
+  if (lbNext) lbNext.addEventListener("click", function () { renderLb(current + 1); });
+
+  /* 点空白处关掉（滑动过就不算点击） */
+  if (lb) {
+    lb.addEventListener("click", function (e) {
+      if (swiped) { swiped = false; return; }
+      if (e.target === lb || e.target.classList.contains("lb-stage")) closeLb();
     });
 
-    if (!DATA.length) {
-      groupsBox.appendChild(el("p", "lead-desc", "（清单里还没有照片，去 photos.js 里加）"));
-    }
+    /* 手机：左右滑翻张 */
+    var sx = 0, sy = 0, tracking = false;
+    lb.addEventListener("pointerdown", function (e) {
+      tracking = true; swiped = false; sx = e.clientX; sy = e.clientY;
+    });
+    lb.addEventListener("pointerup", function (e) {
+      if (!tracking) return;
+      tracking = false;
+      var dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+        swiped = true;
+        renderLb(current + (dx < 0 ? 1 : -1));
+      }
+    });
   }
 
-  /* ================= 6. 滚动入场：一次性的，且随时可以关掉 ================= */
-  var items = document.querySelectorAll(".reveal");
+  /* 键盘：Esc 关，← → 翻 */
+  document.addEventListener("keydown", function (e) {
+    if (!lb || lb.hidden) return;
+    if (e.key === "Escape" || e.key === "Esc") { e.preventDefault(); closeLb(); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); renderLb(current - 1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); renderLb(current + 1); }
+  });
 
-  if (reduce) {
-    Array.prototype.forEach.call(items, function (n) { n.classList.add("in"); });
-  } else if ("IntersectionObserver" in window) {
-    var ioFired = false;      /* 观察器到底有没有回调过 */
-    var io = new IntersectionObserver(function (entries) {
+  /* 焦点锁在大图里，不要 tab 到背后的链接上去 */
+  document.addEventListener("focusin", function (e) {
+    if (lb && !lb.hidden && !lb.contains(e.target) && lbX) lbX.focus();
+  });
+
+  /* ================= 4. 滚动淡入 ================= */
+  var io = null;
+  var ioFired = false;
+
+  if (!reduce && "IntersectionObserver" in window) {
+    io = new IntersectionObserver(function (entries) {
       ioFired = true;
       entries.forEach(function (e) {
         if (e.isIntersecting) {
@@ -224,49 +287,235 @@
           io.unobserve(e.target);
         }
       });
-    }, { rootMargin: "0px 0px -8% 0px" });
-    Array.prototype.forEach.call(items, function (n) { io.observe(n); });
-
-    /* 兜底三：万一观察器压根不回调，就自己按滚动位置判断（rAF 节流） */
-    var ticking = false;
-    function sweep() {
-      ticking = false;
-      if (ioFired) return;
-      Array.prototype.forEach.call(items, function (n) {
-        if (n.classList.contains("in")) return;
-        var r = n.getBoundingClientRect();
-        if (r.top < window.innerHeight - 20 && r.bottom > 0) n.classList.add("in");
-      });
-    }
-    window.addEventListener("scroll", function () {
-      if (ticking) return;
-      ticking = true;
-      if (window.requestAnimationFrame) window.requestAnimationFrame(sweep);
-      else setTimeout(sweep, 60);
-    }, { passive: true });
-
-    /* 兜底一：把 2.5 秒后已经落在视口里的先显示出来 */
-    setTimeout(function () {
-      var shown = 0;
-      Array.prototype.forEach.call(items, function (n) {
-        var r = n.getBoundingClientRect();
-        if (r.top < window.innerHeight && r.bottom > 0) {
-          n.classList.add("in");
-          shown++;
-        }
-      });
-      /* 兜底二：观察器一次都没回调（个别内核/无头浏览器），
-         那就全显示 —— 宁可不动效，也不能把内容藏死 */
-      if (shown === 0) {
-        Array.prototype.forEach.call(items, function (n) { n.classList.add("in"); });
-      }
-    }, 2500);
-  } else {
-    Array.prototype.forEach.call(items, function (n) { n.classList.add("in"); });
+    }, { rootMargin: "0px 0px -6% 0px" });
   }
 
-  /* ================= 7. 回主页的链接统一写在这里 ================= */
-  Array.prototype.forEach.call(document.querySelectorAll("[data-home]"), function (a) {
-    if (!a.getAttribute("href")) a.href = HOME_URL;
+  function each(nodes, fn) { Array.prototype.forEach.call(nodes, fn); }
+
+  function watchReveal(nodes) {
+    var arr = Array.prototype.slice.call(nodes);
+    if (!arr.length) return;
+    if (reduce || !io) { each(arr, function (n) { n.classList.add("in"); }); return; }
+    each(arr, function (n) { io.observe(n); });
+  }
+
+  /* 兜底：自己按滚动位置判断。宁可没动效，也不能把内容藏死 —— 这是这个站的规矩 */
+  function sweep() {
+    var left = 0;
+    each(document.querySelectorAll(".reveal:not(.in)"), function (n) {
+      var r = n.getBoundingClientRect();
+      /* 只要顶端已经越过「视口底往上 16px」这条线就显示 —— 包括已经被滚过去的那些。
+         一次跳转（点导航、带锚点进来）会跳过中间的内容，观察器看不到它们，
+         如果不把「已经过去的」也算进来，那些内容就会永远停在 0 透明度上。 */
+      if (r.top < window.innerHeight - 16) n.classList.add("in");
+      else left++;
+    });
+    return left;
+  }
+
+  /* 节流用定时器，不用 requestAnimationFrame —— 万一 rAF 不回调
+     （无头浏览器、后台标签页），淡入和高亮就永远不推进 */
+  var tick = null;
+  function onScroll() {
+    if (tick) return;
+    tick = setTimeout(function () { tick = null; sweep(); spy(); }, 60);
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+
+  /* ================= 5. 顶栏高亮 ================= */
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll(".nav a[href^='#']"));
+  var navSecs = navLinks.map(function (a) { return document.querySelector(a.getAttribute("href")); });
+
+  function spy() {
+    var line = window.innerHeight * 0.35;
+    var best = -1, bestTop = -Infinity;
+    navSecs.forEach(function (s, i) {
+      if (!s) return;
+      var top = s.getBoundingClientRect().top;
+      if (top <= line && top > bestTop) { bestTop = top; best = i; }
+    });
+    navLinks.forEach(function (a, i) {
+      if (i === best) a.setAttribute("aria-current", "page");
+      else a.removeAttribute("aria-current");
+    });
+  }
+
+  /* ================= 6. 封面：最新一张照片 + 跨越的年份 ================= */
+  var heroImg = document.getElementById("hero-img");
+  var heroYear = document.getElementById("hero-year");
+  var heroSection = document.getElementById("hero");
+
+  function updateHero() {
+    if (!heroImg) return;
+    var first = document.querySelector(".cell.has-pic");
+    if (!first || !first.__p) { heroImg.hidden = true; return; }
+    var p = first.__p;
+    var url = picUrl(p, 1600);
+    if (heroImg.getAttribute("src") === url) return;
+    heroImg.hidden = true;
+    heroImg.src = url;
+    heroImg.alt = [p.place, p.time].filter(Boolean).join("，") || "封面照片";
+    heroImg.hidden = false;
+  }
+
+  if (heroImg) {
+    heroImg.addEventListener("load", function () { heroImg.hidden = false; });
+    /* 封面这张没取到：认了，留一屏深色底，字照样看得见 */
+    heroImg.addEventListener("error", function () { heroImg.hidden = true; });
+  }
+
+  /* 右上角那行年份：从所有照片的时间里数出来，没写时间就不显示 */
+  function updateHeroYear() {
+    if (!heroYear) return;
+    var years = [];
+    each(document.querySelectorAll(".cell.has-pic"), function (n) {
+      var t = (n.__p && n.__p.time) || "";
+      var m = t.match(/(19|20)\d{2}/);
+      if (m && years.indexOf(m[0]) < 0) years.push(m[0]);
+    });
+    years.sort();
+    if (!years.length) { heroYear.hidden = true; heroYear.textContent = ""; return; }
+    heroYear.textContent = years.length > 1 ? years[0] + " — " + years[years.length - 1] : years[0];
+    heroYear.hidden = false;
+  }
+
+  function scrollToId(id) {
+    var t = document.getElementById(id);
+    if (t) t.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  }
+
+  if (heroSection) {
+    heroSection.addEventListener("click", function () { scrollToId("photos"); });
+  }
+  var heroEnter = document.getElementById("hero-enter");
+  if (heroEnter) heroEnter.addEventListener("click", function () { scrollToId("photos"); });
+
+  /* ================= 7. 渲染本地清单 ================= */
+  var groupsBox = document.getElementById("groups");
+  var localGrps = [];
+
+  if (groupsBox) {
+    DATA.forEach(function (g) {
+      var photos = g.photos || [];
+      var real = photos.filter(function (p) { return !!(p.src || p.slug); });
+      var sec = addGroup({
+        title: g.title || "（分组标题待填）",
+        desc: g.desc || "",
+        photos: photos
+      });
+      groupsBox.appendChild(sec);
+      localGrps.push({ sec: sec, empty: real.length === 0 });   /* 全是占位块的分组先记住 */
+    });
+
+    if (!DATA.length) {
+      groupsBox.appendChild(el("p", "wall-empty", "还没有照片。往下滚到页面最底，有一段「贴一张新照片」。"));
+    }
+
+    updateHero();
+    updateHeroYear();
+
+    /* 云端传上来的照片：自己去取清单，自动渲染，不用再改 photos.js */
+    loadCloudPhotos();
+  }
+
+  /* ---- 云端照片：读 Cloudinary 的「按标签列出全部资源」清单 ----
+     需要后台把 Settings → Security → Restricted image types 里的 Resource list
+     取消勾选。取不到（没开开关 / 断网 / 还没传过）就安静退回本地清单。 */
+  function loadCloudPhotos() {
+    var UP = window.HJL_UPLOAD_CONFIG;
+    if (!groupsBox || !UP || !UP.cloudName || !UP.tag) return;
+
+    var host = "https://res.cloudinary.com/" + String(UP.cloudName).toLowerCase();
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", host + "/image/list/" + encodeURIComponent(UP.tag) + ".json", true);
+    xhr.timeout = 12000;
+
+    xhr.onloadend = function () {
+      if (xhr.status !== 200) return;
+      var data = null;
+      try { data = JSON.parse(xhr.responseText); } catch (e) { return; }
+      var res = (data && data.resources) || [];
+      if (!res.length) return;
+
+      var pics = res.map(fromCloud).filter(function (p) { return !!p.src; });
+      pics.sort(function (a, b) { return (b.created || "").localeCompare(a.created || ""); });
+      if (!pics.length) return;
+
+      /* 按「时间」的前几个字自动分组：写 2026.09 就归到 2026.09 */
+      var order = [];
+      var buckets = {};
+      pics.forEach(function (p) {
+        var key = (p.time || "").trim().slice(0, 7) || "没写时间";
+        if (!buckets[key]) { buckets[key] = []; order.push(key); }
+        buckets[key].push(p);
+      });
+
+      var made = [];
+      order.forEach(function (key) {
+        made.push(addGroup({
+          title: key === "没写时间" ? "（还没写时间的）" : key,
+          desc: "",
+          photos: buckets[key]
+        }));
+      });
+
+      /* 新的排前面 */
+      var first = groupsBox.firstChild;
+      made.forEach(function (sec) { groupsBox.insertBefore(sec, first); });
+
+      /* 云端有真照片了，本地那一堆「待填」占位分组就先收起来，别喧宾夺主 */
+      localGrps.forEach(function (o) {
+        if (o.empty && o.sec && o.sec.parentNode) o.sec.parentNode.removeChild(o.sec);
+      });
+      each(groupsBox.querySelectorAll(".wall-empty"), function (n) {
+        if (n.parentNode) n.parentNode.removeChild(n);
+      });
+
+      made.forEach(function (sec) { watchReveal(sec.querySelectorAll(".reveal")); });
+      updateHero();          /* 云端最新的那张就是封面 */
+      updateHeroYear();
+      sweep();
+    };
+
+    xhr.send();
+  }
+
+  function fromCloud(r) {
+    var UP = window.HJL_UPLOAD_CONFIG || {};
+    var cx = (r.context && r.context.custom) || {};
+    return {
+      src: "https://res.cloudinary.com/" + String(UP.cloudName || "").toLowerCase() +
+           "/image/upload/" + (r.public_id || "") + "." + (r.format || "jpg"),
+      time: cx.time || "",
+      place: cx.place || "",
+      note: cx.note || "",
+      created: r.created_at || ""
+    };
+  }
+
+  /* ================= 8. 页脚 ================= */
+  var footYear = document.getElementById("foot-year");
+  if (footYear) footYear.textContent = String(new Date().getFullYear());
+
+  each(document.querySelectorAll("[data-go]"), function (b) {
+    b.addEventListener("click", function () { scrollToId(b.getAttribute("data-go")); });
   });
+
+  var backTop = document.getElementById("back-to-top");
+  if (backTop) {
+    backTop.addEventListener("click", function () {
+      window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    });
+  }
+
+  /* ================= 9. 起跑 ================= */
+  watchReveal(document.querySelectorAll(".reveal"));
+  spy();
+
+  /* 观察器一直没回调（个别内核 / 无头浏览器），那就全显示 */
+  setTimeout(function () {
+    sweep();
+    if (!ioFired) each(document.querySelectorAll(".reveal:not(.in)"), function (n) { n.classList.add("in"); });
+  }, 2600);
 })();

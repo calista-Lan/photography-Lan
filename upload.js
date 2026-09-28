@@ -1,14 +1,16 @@
 /* ==========================================================================
-   贴照片工具：把照片直接传到 Cloudinary，拿到链接后填进 photos.js
+   贴照片工具：把照片直接传到 Cloudinary，连同时间 / 地点 / 一句心情一起存进去
    --------------------------------------------------------------------------
-   怎么用起来（一次性配置，3 步）：
-     ① 注册 https://cloudinary.com（免费额度足够个人手账用）
-     ② 打开 Dashboard，抄下最上面那个 **Cloud Name**
-     ③ Settings（齿轮）→ Upload → 滚到 **Upload presets** → Add upload preset
-          · Signing Mode 一定要选 **Unsigned**（选了它前端才能直传）
-          · Folder 可以填 photo-notebook（不填也行）
-          · 保存，然后把 preset 的名字抄下来
-     ④ 把下面 CONFIG 里的四个值改成你自己的
+   现在的流程（不用再回头改 photos.js 了）：
+     选照片 → 每行填「时间 / 地点 / 一句心情」→ 传上去
+     → 大约一分钟后，照片就自动出现在页面「照片」那一页里
+
+   原理：每次上传会把这三项写进照片的 context（元数据），
+         页面再去 Cloudinary 读一份「带这个标签的全部照片」清单自动渲染。
+   所以 **必须在 Cloudinary 后台打开一个开关**（一次性的）：
+       Settings（齿轮）→ Security → Restricted image types
+       → 把 Resource list 这一项取消勾选 → Save
+     没开的话页面会安静地退回本地清单（不会报错，也不会显示乱东西）。
 
    ⚠️ 关于"密钥写进前端"这件事：
       这个站是纯静态的 GitHub Pages，仓库里的文件全部公开，
@@ -25,12 +27,16 @@
 
   /* ============ 你只需要改这一段 ============ */
   var CONFIG = {
-    cloudName: "KPVs88E6",                 /* ← Cloud Name，例如 "dabc12xyz" */
-    uploadPreset: "个人摄影网站",              /* ← 第 ③ 步建的 unsigned preset 名字 */
-    folder: "photo-notebook",      /* ← 照片归到哪个文件夹，留空就是根目录 */
-    passcode: "Cshinipapa"          /* ← 改成你自己的口令 */
+    cloudName: "KPVs88E6",            /* ← Cloud Name，例如 "dabc12xyz" */
+    uploadPreset: "个人摄影网站",       /* ← unsigned preset 的名字（中文也行） */
+    folder: "photo-notebook",         /* ← 照片归到哪个文件夹，留空就是根目录 */
+    tag: "photo-notebook",            /* ← 读取清单用的标签，跟 APP 那边一致 */
+    passcode: "Cshinipapa"            /* ← 改成你自己的口令 */
   };
   /* ======================================== */
+
+  /* 给渲染那边用：页面启动时据此去取云端清单（所以本文件要在 app.js 之前加载） */
+  window.HJL_UPLOAD_CONFIG = CONFIG;
 
   var root = document.getElementById("paste");
   if (!root) return;
@@ -40,15 +46,12 @@
   var codeInput = document.getElementById("paste-code");
   var tool = document.getElementById("paste-tool");
   var msg = document.getElementById("paste-msg");
+  var done = document.getElementById("paste-done");
   var fileInput = document.getElementById("paste-files");
   var goBtn = document.getElementById("paste-go");
   var list = document.getElementById("paste-list");
-  var out = document.getElementById("paste-out");
-  var outText = document.getElementById("paste-code-out");
-  var copyBtn = document.getElementById("paste-copy");
-  var copyMsg = document.getElementById("paste-copy-msg");
 
-  var entries = [];                        /* 传成功的照片，攒成清单条目 */
+  var rows = [];                            /* 每一行：文件 + 它那三个输入框 */
 
   function ready() { return !!CONFIG.cloudName && !!CONFIG.uploadPreset; }
 
@@ -84,51 +87,108 @@
     });
   }
 
-  /* ---------- 选文件、一张一张传 ---------- */
-  if (goBtn) {
-    goBtn.addEventListener("click", function () {
-      var files = Array.prototype.slice.call((fileInput && fileInput.files) || []);
-      if (!files.length) { say(msg, "先选几张照片。"); return; }
-      goBtn.disabled = true;
+  /* ---------- 选好文件后，给每张照片排一行（时间 / 地点 / 心情） ---------- */
+  if (fileInput) {
+    fileInput.addEventListener("change", function () {
+      var files = Array.prototype.slice.call(fileInput.files || []);
+      if (!files.length) return;
+      list.innerHTML = "";
+      rows = [];
       say(msg, "");
-      uploadSeq(files, 0);
+      say(done, "");
+
+      files.forEach(function (file) {
+        var li = document.createElement("li");
+
+        var name = document.createElement("span");
+        name.className = "paste-name";
+        name.textContent = file.name;
+
+        var bar = document.createElement("span");
+        bar.className = "paste-bar";
+        var fill = document.createElement("i");
+        bar.appendChild(fill);
+
+        var state = document.createElement("span");
+        state.className = "paste-state";
+        state.textContent = "待传";
+
+        /* 三项元数据：跟着这张照片一起存进 Cloudinary */
+        var meta = document.createElement("p");
+        meta.className = "paste-meta";
+        var fields = {};
+        [["time", "时间", "2026.09"],
+         ["place", "地点", "海边"],
+         ["note", "一句心情", "风大得睁不开眼"]].forEach(function (f) {
+          var lab = document.createElement("label");
+          lab.appendChild(document.createTextNode(f[1]));
+          var inp = document.createElement("input");
+          inp.type = "text";
+          inp.placeholder = f[2];
+          inp.autocomplete = "off";
+          inp.className = "m-" + f[0];
+          lab.appendChild(inp);
+          meta.appendChild(lab);
+          fields[f[0]] = inp;
+        });
+
+        li.appendChild(name);
+        li.appendChild(bar);
+        li.appendChild(state);
+        li.appendChild(meta);
+        list.appendChild(li);
+
+        rows.push({ file: file, li: li, fill: fill, state: state, f: fields });
+      });
     });
   }
 
-  function uploadSeq(files, i) {
-    if (i >= files.length) {
-      goBtn.disabled = false;
-      say(msg, entries.length ? ("传完了，" + entries.length + " 张。复制下面那几行粘进 photos.js。") : "一张都没传成功，看看下面的提示。");
-      return;
-    }
-    uploadOne(files[i], function () { uploadSeq(files, i + 1); });
+  /* ---------- 传上去 ---------- */
+  if (goBtn) {
+    goBtn.addEventListener("click", function () {
+      if (!rows.length) { say(msg, "先点「选照片」挑几张。"); return; }
+      goBtn.disabled = true;
+      say(msg, "");
+      say(done, "");
+      uploadSeq(0);
+    });
   }
 
-  function uploadOne(file, next) {
-    var li = document.createElement("li");
+  function uploadSeq(i) {
+    if (i >= rows.length) {
+      goBtn.disabled = false;
+      var ok = rows.filter(function (r) { return r.ok; }).length;
+      if (!ok) {
+        say(msg, "一张都没传成功，看看每行下面的提示。");
+      } else {
+        say(done, "贴上 " + ok + " 张了。刷新页面（或等一分钟），照片那一页就会自动出现。");
+      }
+      return;
+    }
+    uploadOne(rows[i], function () { uploadSeq(i + 1); });
+  }
 
-    var name = document.createElement("span");
-    name.className = "paste-name";
-    name.textContent = file.name;
+  /* context 的格式是 key=value 用竖线隔开，用户填的 | 和 = 会把它弄坏 */
+  function ctxSafe(v) {
+    return String(v || "").replace(/[\r\n]+/g, " ").replace(/[|=]/g, " ").trim();
+  }
 
-    var bar = document.createElement("span");
-    bar.className = "paste-bar";
-    var fill = document.createElement("i");
-    bar.appendChild(fill);
-
-    var state = document.createElement("span");
-    state.className = "paste-state";
-    state.textContent = "0%";
-
-    li.appendChild(name);
-    li.appendChild(bar);
-    li.appendChild(state);
-    list.appendChild(li);
+  function uploadOne(row, next) {
+    var fill = row.fill;
+    var state = row.state;
+    var li = row.li;
 
     var fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", row.file);
     fd.append("upload_preset", CONFIG.uploadPreset);
     if (CONFIG.folder) fd.append("folder", CONFIG.folder);
+    if (CONFIG.tag) fd.append("tags", CONFIG.tag);
+
+    /* 时间 / 地点 / 一句心情：存成照片的元数据，页面直接读出来用 */
+    var ctx = ["time", "place", "note"].map(function (k) {
+      return k + "=" + ctxSafe(row.f[k].value);
+    }).join("|");
+    if (ctx !== "time=|place=|note=") fd.append("context", ctx);
 
     var xhr = new XMLHttpRequest();
     xhr.open("POST", "https://api.cloudinary.com/v1_1/" + CONFIG.cloudName + "/image/upload");
@@ -140,6 +200,16 @@
       state.textContent = pct + "%";
     });
 
+    function bad(why) {
+      state.textContent = "没传成";
+      li.classList.add("is-bad");
+      var err = document.createElement("span");
+      err.className = "paste-err";
+      err.textContent = why;
+      li.appendChild(err);
+      next();
+    }
+
     xhr.addEventListener("load", function () {
       var data = null;
       try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
@@ -148,67 +218,19 @@
         fill.style.width = "100%";
         state.textContent = "贴上了";
         li.classList.add("is-done");
-        addEntry(file, data);
+        row.ok = true;
       } else {
-        state.textContent = "没传成";
-        li.classList.add("is-bad");
-        var why = (data && data.error && data.error.message) || ("HTTP " + xhr.status);
-        var err = document.createElement("span");
-        err.className = "paste-err";
-        err.textContent = why;
-        li.appendChild(err);
+        bad((data && data.error && data.error.message) || ("HTTP " + xhr.status));
       }
       next();
     });
 
     xhr.addEventListener("error", function () {
-      state.textContent = "没传成";
-      li.classList.add("is-bad");
-      var err = document.createElement("span");
-      err.className = "paste-err";
-      err.textContent = "网络没连上；如果你是双击文件（file://）打开的，浏览器会拦掉上传，请用 https 网址打开。";
-      li.appendChild(err);
-      next();
+      bad("网络没连上；如果你是双击文件（file://）打开的，浏览器会拦掉上传，请用 https 网址打开。");
     });
+
+    xhr.addEventListener("abort", function () { bad("传了一半被中断了。"); });
 
     xhr.send(fd);
-  }
-
-  /* ---------- 攒成可以直接粘进 photos.js 的一行 ---------- */
-  function addEntry(file, data) {
-    var base = file.name.replace(/\.[^.]+$/, "");
-    var slug = base
-      .replace(/[^\w\u4e00-\u9fa5-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .toLowerCase() || "photo";
-
-    entries.push({ src: data.secure_url, slug: slug });
-
-    if (!out) return;
-    out.hidden = false;
-    outText.value = entries.map(function (e) {
-      return "        { src: '" + e.src + "', slug: '" + e.slug + "', time: '', place: '', note: '' },";
-    }).join("\n");
-  }
-
-  /* ---------- 复制 ---------- */
-  if (copyBtn) {
-    copyBtn.addEventListener("click", function () {
-      var text = outText.value || "";
-      function fallback() {
-        outText.focus();
-        outText.select();
-        var ok = false;
-        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-        say(copyMsg, ok ? "已复制，粘进 photos.js 就行。" : "复制没成功，手动选中上面的文字复制吧。");
-      }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () {
-          say(copyMsg, "已复制，粘进 photos.js 就行。");
-        }, fallback);
-      } else {
-        fallback();
-      }
-    });
   }
 })();
