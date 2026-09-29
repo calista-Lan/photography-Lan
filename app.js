@@ -318,7 +318,7 @@
   var tick = null;
   function onScroll() {
     if (tick) return;
-    tick = setTimeout(function () { tick = null; sweep(); spy(); }, 60);
+    tick = setTimeout(function () { tick = null; sweep(); spy(); railSpy(); railOn(); }, 60);
   }
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", onScroll);
@@ -339,6 +339,65 @@
       if (i === best) a.setAttribute("aria-current", "page");
       else a.removeAttribute("aria-current");
     });
+  }
+
+  /* ================= 5b. 侧边分类：时间 + 地点 =================
+     每渲染出一组就照着这组重建一次分类条。点一条滚到那一组，
+     滚到哪一组哪一条点亮 —— 和参考站那根竖着排的列表一个意思。 */
+  var rail = document.getElementById("rail");
+  var railItems = [];
+
+  function buildRail() {
+    if (!rail) return;
+    var secs = Array.prototype.slice.call(document.querySelectorAll("#groups .grp"));
+    rail.textContent = "";
+    railItems = [];
+    secs.forEach(function (sec) {
+      /* 只收「真有照片」的分组：photos.js 里还没填的那种占位分组不进条子，
+         要不然会列出一排一模一样的「（分组标题待填）」 */
+      if (!sec.querySelector(".cell.has-pic")) return;
+      var t = sec.querySelector(".grp-title");
+      var label = t ? (t.textContent || "").trim() : "";
+      if (!label) return;
+      var b = el("button", "rail-item", label);
+      b.type = "button";
+      b.setAttribute("aria-label", "跳到这一组：" + label);
+      b.addEventListener("click", function () {
+        sec.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+        railSpy(); railOn();
+        /* 平滑滚动要一会儿才停，落地后再同步一次 ——
+           不等滚动事件（有些环境下它不可靠），点完条子就立刻亮到那一条 */
+        setTimeout(function () { railSpy(); railOn(); }, 420);
+      });
+      rail.appendChild(b);
+      railItems.push({ btn: b, sec: sec });
+    });
+    rail.hidden = railItems.length === 0;
+    railSpy();
+    railOn();
+  }
+
+  /* 点亮：取「已经滚过视口上方 35% 那条线」的最后一组 */
+  function railSpy() {
+    if (!railItems.length) return;
+    var line = window.innerHeight * 0.35;
+    var best = 0;
+    railItems.forEach(function (it, i) {
+      if (it.sec.getBoundingClientRect().top <= line) best = i;
+    });
+    railItems.forEach(function (it, i) {
+      if (i === best) it.btn.setAttribute("aria-current", "true");
+      else it.btn.removeAttribute("aria-current");
+    });
+  }
+
+  /* 只在照片区里露出来：封面和页脚那里不该看到它（窄屏它是横排，不受这条控制） */
+  function railOn() {
+    if (!rail || !railItems.length) return;
+    var wall = document.getElementById("photos");
+    if (!wall) return;
+    var r = wall.getBoundingClientRect();
+    rail.classList.toggle("is-on", r.bottom > 140 && r.top < window.innerHeight - 140);
   }
 
   /* ================= 6. 封面：最新一张照片 + 跨越的年份 ================= */
@@ -414,6 +473,7 @@
 
     updateHero();
     updateHeroYear();
+    buildRail();
 
     /* 云端传上来的照片：自己去取清单，自动渲染，不用再改 photos.js */
     loadCloudPhotos();
@@ -458,19 +518,27 @@
       pics.sort(function (a, b) { return (b.created || "").localeCompare(a.created || ""); });
       if (!pics.length) return;
 
-      /* 按「时间」的前几个字自动分组：写 2026.09 就归到 2026.09 */
+      /* 按「时间 + 地点」自动分组：时间写 2026.09、地点写 杭州
+         就是一组「2026.09 杭州」；地点空着就只按时间分。 */
       var order = [];
       var buckets = {};
+      var titles = {};
       pics.forEach(function (p) {
-        var key = (p.time || "").trim().slice(0, 7) || "没写时间";
-        if (!buckets[key]) { buckets[key] = []; order.push(key); }
+        var tm = (p.time || "").trim().slice(0, 7);
+        var pl = (p.place || "").trim();
+        var key = (tm || "没写时间") + "\u0000" + pl;
+        if (!buckets[key]) {
+          buckets[key] = [];
+          order.push(key);
+          titles[key] = tm ? (pl ? tm + " " + pl : tm) : "（还没写时间的）";
+        }
         buckets[key].push(p);
       });
 
       var made = [];
       order.forEach(function (key) {
         made.push(addGroup({
-          title: key === "没写时间" ? "（还没写时间的）" : key,
+          title: titles[key],
           desc: "",
           photos: buckets[key]
         }));
@@ -489,6 +557,7 @@
       });
 
       made.forEach(function (sec) { watchReveal(sec.querySelectorAll(".reveal")); });
+      buildRail();
       updateHero();          /* 云端最新的那张就是封面 */
       updateHeroYear();
       sweep();

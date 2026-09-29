@@ -185,6 +185,8 @@ p { margin: 0; }
 .grp {
   margin-top: 72px; padding-top: 56px;
   border-top: 1px solid var(--line-soft);
+  /* 分类条点过来时，别让这一组的开头藏到顶栏底下 */
+  scroll-margin-top: calc(var(--bar-h) + 20px);
 }
 @media (min-width: 900px) { .grp { margin-top: 128px; padding-top: 80px; } }
 
@@ -272,6 +274,67 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
   margin: 0; font-size: 12px; line-height: 1.65;
   letter-spacing: .02em; color: var(--ink-2);
 }
+
+/* ---------- 侧边分类：时间 + 地点 ----------
+   宽屏：钉在左边那条本来就留空的凹槽里（就是 --inset 让出来的 150px），
+         一条 hairline 竖线立在右侧，和参考站那根列表是一个意思；
+         只在照片区滚进来的时候才淡出，封面和页脚那里不出现。
+   窄屏：没有那条凹槽，改成照片上面横着排的一条，能左右滑。 */
+.rail {
+  display: flex; gap: 22px;
+  max-width: var(--wrap); margin: 0 auto;
+  padding: 0 24px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.rail::-webkit-scrollbar { display: none; }
+.rail[hidden] { display: none; }
+
+.rail-item {
+  flex: none;
+  padding: 4px 0;
+  background: none; border: 0;
+  font-family: var(--font);
+  font-size: 12px; line-height: 1.5; letter-spacing: .04em;
+  color: var(--ink-3);
+  white-space: nowrap; cursor: pointer;
+  transition: color .18s ease;
+}
+.rail-item:hover { color: var(--ink); }
+.rail-item[aria-current="true"] { color: var(--ink); font-weight: 500; }
+.rail-item:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px; }
+
+@media (min-width: 900px) {
+  .rail {
+    display: block;
+    position: fixed;
+    top: calc(var(--bar-h) + 48px);
+    left: 96px;                              /* 48 内容留白 + 48 网格留白 */
+    width: calc(var(--inset) - 34px);
+    max-width: none; margin: 0;
+    padding: 0 16px 0 0;
+    border-right: 1px solid var(--line-soft);
+    overflow: hidden auto;
+    max-height: calc(100vh - var(--bar-h) - 96px);
+    opacity: 0; pointer-events: none;         /* 照片区没到就不显示 */
+    transition: opacity .3s ease;
+  }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail.is-on { opacity: 1; pointer-events: auto; }
+
+  .rail-item {
+    display: block; width: 100%;
+    /* 左边这条 2px 一直占着位，点亮时只换颜色，条子不跳 */
+    padding: 5px 0 5px 10px;
+    border-left: 2px solid transparent;
+    text-align: left; white-space: normal;
+    font-size: 12px;
+  }
+  .rail-item[aria-current="true"] { border-left-color: var(--ink); }
+}
+@media (min-width: 1200px) { .rail { left: 128px; } }
+@media (min-width: 1500px) { .rail { left: calc((100vw - var(--wrap)) / 2 + 128px); } }
 
 /* ---------- 关于 ---------- */
 .about { padding: 0 0 clamp(80px, 11vw, 132px); }
@@ -521,7 +584,7 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
 
 /* ---------- 窄屏 ---------- */
 @media (max-width: 520px) {
-  .wrap, .bar-in, .paste { padding-left: 16px; padding-right: 16px; }
+  .wrap, .bar-in, .paste, .rail { padding-left: 16px; padding-right: 16px; }
   .grp-head, .grid, .wall-note { padding-left: 16px; padding-right: 16px; }
   .nav { gap: 16px; }
   .nav a { letter-spacing: .06em; }
@@ -533,7 +596,7 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
 
 /* ---------- 打印：整理成能直接打印的照片页 ---------- */
 @media print {
-  .bar, .lb, .paste, .hero-enter, .no-print { display: none; }
+  .bar, .lb, .paste, .hero-enter, .rail, .no-print { display: none; }
   body { background: #fff; font-size: 12px; }
   .hero { height: auto; background: #fff; }
   .hero-img { position: static; height: auto; }
@@ -552,5 +615,5 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
   html { scroll-behavior: auto; }
   .js .reveal { opacity: 1; transition: none; }
   .paste > summary::after { transition: none; }
-  button.thumb, .lb-btn, .nav a, .hero-enter { transition: none; }
+  button.thumb, .lb-btn, .nav a, .hero-enter, .rail, .rail-item { transition: none; }
 }

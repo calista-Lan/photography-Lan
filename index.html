@@ -40,6 +40,9 @@
 
     <!-- ============ 照片墙：分组由 photos.js 清单和云端照片自动生成 ============ -->
     <section class="wall" id="photos">
+      <!-- 侧边分类：按「时间 + 地点」列出每一组，滚到哪一组就点亮哪一条。
+           内容由 app.js 按真实照片的分组自动生成，不写死任何一项 -->
+      <nav aria-label="照片分类" class="rail" id="rail"></nav>
       <div class="wrap">
         <div id="groups"></div>
         <noscript>
