@@ -7,7 +7,7 @@
      ③ 点一张照片 → 全屏大图（←/→ 翻，Esc 关，手机上左右滑）
      ④ 顶栏导航按滚动位置高亮
      ⑤ 滚动淡入（只播一次，可由 prefers-reduced-motion 关掉）
-     ⑥ 云端清单取不到时，安静退回本地清单（不报错、不留空白）
+     ⑥ 云端清单 + 这台电脑记录的照片合起来铺；两边都没有才留一句话说明
      ⑦ 本地图片缺 1600 那一档时自动退回 800，两档都没有才显示占位块
      ⑧ 页脚年份、返回封面 / 浏览画廊 / 返回顶部
    没有任何自动播放的动画，没有外部依赖。
@@ -16,6 +16,11 @@
   "use strict";
 
   var reduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  /* 本机清单的键名，必须和 upload.js 里的那个一致。
+     放在最上面是有原因的： var 只提升声明、不提升赋值，
+     写在下面会让**第一次**渲染读到一个还没赋值的名字 —— 上次就栽在这儿。 */
+  var MINE_KEY = window.HJL_MINE_KEY || "hjl-photo-mine-v1";
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -479,27 +484,143 @@
     loadCloudPhotos();
   }
 
+  /* ---- 本机清单：这台电脑上亲手传过的照片 ----
+     存在 localStorage 里。照片本体照样在云端，这里只记「地址 + 时间地点心情」，
+     所以就算 Cloudinary 那份清单读不出来，你自己的电脑也立刻看得到。
+     键名由 upload.js 设进 window，两个文件必须是同一个名字。 */
+  function readMine() {
+    try {
+      var raw = window.localStorage && localStorage.getItem(MINE_KEY);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      if (Object.prototype.toString.call(arr) !== "[object Array]") return [];
+      return arr.filter(function (p) {
+        /* 只认 https 开头的图片地址，别的来源一律丢掉，别拿它当 src 用 */
+        return p && typeof p.src === "string" && p.src.indexOf("https://") === 0;
+      }).map(function (p) {
+        return {
+          src: p.src,
+          time: String(p.time || ""),
+          place: String(p.place || ""),
+          note: String(p.note || ""),
+          created: String(p.created || "")
+        };
+      });
+    } catch (e) { return []; }
+  }
+
   /* 云端清单读不出来的时候留一行小字 —— 原来是完全静默的，
      传了照片却看不到、又没有任何提示，最容易让人以为照片丢了 */
   var cloudNote = null;
-  function noteCloudFail(status) {
+  function noteCloudFail(status, mine) {
     if (!groupsBox || cloudNote) return;
-    /* 访客（没输过上传口令）且页面本来就有真照片 → 不打扰，什么都不加 */
+    if (mine && mine.length) {
+      cloudNote = el("p", "wall-note",
+        "现在显示的是这台电脑上记录下来的 " + mine.length + " 张照片，别的设备看不到。" +
+        "想让所有人都能看到：Cloudinary 后台 Settings → Security → Restricted image types，" +
+        "把 Resource list 取消勾选、Save，一分钟后再刷新。");
+      groupsBox.insertBefore(cloudNote, groupsBox.firstChild);
+      return;
+    }
+    /* 后台该怎么操作这段话只给站长看 —— 拿「这一轮有没有输过上传口令」当凭据。
+       访客看到的是一句不带任何内部信息的话。 */
     var owner = false;
     try { owner = !!(window.sessionStorage && sessionStorage.getItem("hjl-photo-paste-ok") === "1"); } catch (e) {}
-    if (!owner && document.querySelectorAll(".cell.has-pic").length) return;
-    cloudNote = el("p", "wall-note", status === 401
-      ? "云端的照片没读出来：Cloudinary 后台 Settings → Security → Restricted image types 里的 Resource list 还勾着。取消勾选、Save，一分钟后再刷一次。"
-      : "云端的照片没读出来（可能是断网）。现在显示的是本地清单。");
+    cloudNote = el("p", "wall-note", owner
+      ? "暂时还没有照片。" + (status === 401
+          ? "（你自己看的那份：云端清单没读出来，去 Cloudinary 后台 Settings → Security → Restricted image types，" +
+            "把 Resource list 取消勾选、Save，一分钟后再刷新。）"
+          : "（你自己看的那份：云端清单没读到，可能是断网。）")
+      : "暂时还没有照片。");
     groupsBox.insertBefore(cloudNote, groupsBox.firstChild);
   }
 
-  /* ---- 云端照片：读 Cloudinary 的「按标签列出全部资源」清单 ----
-     需要后台把 Settings → Security → Restricted image types 里的 Resource list
-     取消勾选。取不到（没开开关 / 断网 / 还没传过）就安静退回本地清单。 */
+  /* 两份清单合起来：同一张地址只留一条（本机那条信息更全，优先） */
+  function mergePics(cloudPics, mine) {
+    var out = mine.slice();
+    var seen = {};
+    out.forEach(function (p) { seen[p.src] = 1; });
+    cloudPics.forEach(function (p) { if (!seen[p.src]) { seen[p.src] = 1; out.push(p); } });
+    out.sort(function (a, b) { return (b.created || "").localeCompare(a.created || ""); });
+    return out;
+  }
+
+  /* 按「时间 + 地点」分组铺到照片墙最前面。
+     铺过的都带 .grp-saved 标记 —— 传完照片会再来一次，先收拾干净，
+     不然同样的照片会叠一遍。 */
+  function renderSaved(pics) {
+    if (!groupsBox) return;
+    each(groupsBox.querySelectorAll(".grp-saved"), function (n) {
+      if (n.parentNode) n.parentNode.removeChild(n);
+    });
+    if (!pics.length) return;
+
+    var order = [];
+    var buckets = {};
+    var titles = {};
+    pics.forEach(function (p) {
+      var tm = (p.time || "").trim().slice(0, 7);
+      var pl = (p.place || "").trim();
+      var key = (tm || "没写时间") + "\u0000" + pl;
+      if (!buckets[key]) {
+        buckets[key] = [];
+        order.push(key);
+        titles[key] = tm ? (pl ? tm + " " + pl : tm) : "（还没写时间的）";
+      }
+      buckets[key].push(p);
+    });
+
+    var made = [];
+    order.forEach(function (key) {
+      made.push(addGroup({ title: titles[key], desc: "", photos: buckets[key] }));
+    });
+
+    var first = groupsBox.firstChild;
+    made.forEach(function (sec) { sec.classList.add("grp-saved"); groupsBox.insertBefore(sec, first); });
+
+    /* 本地清单（photos.js）里如果写着同一张照片，别显示两遍 ——
+       导出的代码贴回去、本机那份又没清的时候，两边就会同时撞上 */
+    var seenSrc = {};
+    pics.forEach(function (p) { if (p.src) seenSrc[p.src] = 1; });
+    if (Object.keys(seenSrc).length) {
+      each(groupsBox.querySelectorAll(".grp:not(.grp-saved)"), function (sec) {
+        var left = 0;
+        each(sec.querySelectorAll(".cell"), function (c) {
+          if (c.__p && c.__p.src && seenSrc[c.__p.src]) {
+            if (c.parentNode) c.parentNode.removeChild(c);
+            return;
+          }
+          left++;
+        });
+        /* 这一组整组都是重复的那几张 → 连标题一起撤掉 */
+        if (!left && sec.parentNode) sec.parentNode.removeChild(sec);
+      });
+    }
+
+    /* 有真照片了，本地那一堆「待填」占位分组就先收起来，别喧宾夺主 */
+    localGrps.forEach(function (o) {
+      if (o.empty && o.sec && o.sec.parentNode) o.sec.parentNode.removeChild(o.sec);
+    });
+    each(groupsBox.querySelectorAll(".wall-empty"), function (n) {
+      if (n.parentNode) n.parentNode.removeChild(n);
+    });
+
+    made.forEach(function (sec) { watchReveal(sec.querySelectorAll(".reveal")); });
+    buildRail();
+    updateHero();          /* 最新的那张就是封面 */
+    updateHeroYear();
+    sweep();
+  }
+
+  /* ---- 照片清单：先去 Cloudinary 要那份「按标签列出全部资源」的清单 ----
+     要得到它，必须去后台 Settings → Security → Restricted image types
+     把 Resource list 取消勾选。要不到也没关系，本机那份照样能铺出来。 */
   function loadCloudPhotos() {
     var UP = window.HJL_UPLOAD_CONFIG;
-    if (!groupsBox || !UP || !UP.cloudName || !UP.tag) return;
+    var mine = readMine();
+    if (!groupsBox) return;
+
+    if (!UP || !UP.cloudName || !UP.tag) { renderSaved(mine); return; }
 
     var host = "https://res.cloudinary.com/" + String(UP.cloudName).toLowerCase();
     var xhr = new XMLHttpRequest();
@@ -508,63 +629,29 @@
 
     /* 超时 / 断网也会走到 onloadend，status 是 0 */
     xhr.onloadend = function () {
-      if (xhr.status !== 200) { noteCloudFail(xhr.status); return; }
-      var data = null;
-      try { data = JSON.parse(xhr.responseText); } catch (e) { noteCloudFail(xhr.status); return; }
-      var res = (data && data.resources) || [];
-      if (!res.length) return;   /* 清单是空的：还没传过照片，不算出错，不提示 */
+      var cloudPics = [];
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          cloudPics = ((data && data.resources) || []).map(fromCloud).filter(function (p) { return !!p.src; });
+        } catch (e) { cloudPics = []; }
+      }
 
-      var pics = res.map(fromCloud).filter(function (p) { return !!p.src; });
-      pics.sort(function (a, b) { return (b.created || "").localeCompare(a.created || ""); });
-      if (!pics.length) return;
+      var pics = mergePics(cloudPics, mine);
+      renderSaved(pics);
 
-      /* 按「时间 + 地点」自动分组：时间写 2026.09、地点写 杭州
-         就是一组「2026.09 杭州」；地点空着就只按时间分。 */
-      var order = [];
-      var buckets = {};
-      var titles = {};
-      pics.forEach(function (p) {
-        var tm = (p.time || "").trim().slice(0, 7);
-        var pl = (p.place || "").trim();
-        var key = (tm || "没写时间") + "\u0000" + pl;
-        if (!buckets[key]) {
-          buckets[key] = [];
-          order.push(key);
-          titles[key] = tm ? (pl ? tm + " " + pl : tm) : "（还没写时间的）";
-        }
-        buckets[key].push(p);
-      });
-
-      var made = [];
-      order.forEach(function (key) {
-        made.push(addGroup({
-          title: titles[key],
-          desc: "",
-          photos: buckets[key]
-        }));
-      });
-
-      /* 新的排前面 */
-      var first = groupsBox.firstChild;
-      made.forEach(function (sec) { groupsBox.insertBefore(sec, first); });
-
-      /* 云端有真照片了，本地那一堆「待填」占位分组就先收起来，别喧宾夺主 */
-      localGrps.forEach(function (o) {
-        if (o.empty && o.sec && o.sec.parentNode) o.sec.parentNode.removeChild(o.sec);
-      });
-      each(groupsBox.querySelectorAll(".wall-empty"), function (n) {
-        if (n.parentNode) n.parentNode.removeChild(n);
-      });
-
-      made.forEach(function (sec) { watchReveal(sec.querySelectorAll(".reveal")); });
-      buildRail();
-      updateHero();          /* 云端最新的那张就是封面 */
-      updateHeroYear();
-      sweep();
+      /* 全靠本机那份的时候，得说清楚「别的设备看不到」 */
+      if (!cloudPics.length && mine.length) noteCloudFail(xhr.status, mine);
+      else if (!pics.length && xhr.status !== 200) noteCloudFail(xhr.status, null);
     };
 
     xhr.send();
   }
+
+  /* 给上传那边的脚本用：传完叫一声，照片墙就地重铺，不用手动刷新 */
+  window.HJL_REFRESH_PHOTOS = function () {
+    if (groupsBox) loadCloudPhotos();
+  };
 
   function fromCloud(r) {
     var UP = window.HJL_UPLOAD_CONFIG || {};

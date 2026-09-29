@@ -5,12 +5,22 @@
      选照片 → 每行填「时间 / 地点 / 一句心情」→ 传上去
      → 大约一分钟后，照片就自动出现在页面「照片」那一页里
 
-   原理：每次上传会把这三项写进照片的 context（元数据），
-         页面再去 Cloudinary 读一份「带这个标签的全部照片」清单自动渲染。
-   所以 **必须在 Cloudinary 后台打开一个开关**（一次性的）：
-       Settings（齿轮）→ Security → Restricted image types
-       → 把 Resource list 这一项取消勾选 → Save
-     没开的话页面会安静地退回本地清单（不会报错，也不会显示乱东西）。
+   读清单有两条路，互为备份：
+
+     ① 云端清单（对所有人可见，要后台开一次开关）
+        每次上传会把这三项写进照片的 context（元数据），
+        页面再去 Cloudinary 读一份「带这个标签的全部照片」清单自动渲染。
+        前提是 **必须在 Cloudinary 后台打开一个开关**（一次性的）：
+            Settings（齿轮）→ Security → Restricted image types
+            → 把 Resource list 这一项取消勾选 → Save（别忘了 Save）
+
+     ② 本机清单（立刻可见，但只有这台电脑看得到）
+        每传成功一张，就把「地址 + 时间地点心情」记一份在这台浏览器的
+        localStorage 里。云端那份清单读不出来的时候，照片照样铺得出来。
+        ——上传完立刻就能看到，不用等、不用开开关。代价是别人和手机看不到。
+
+     想要全世界都看到、又暂时不想改后台：点下面的「导出清单代码」，
+     把生成的内容整段覆盖进 photos.js，提交上去就行。
 
    ⚠️ 关于"密钥写进前端"这件事：
       这个站是纯静态的 GitHub Pages，仓库里的文件全部公开，
@@ -38,6 +48,10 @@
   /* 给渲染那边用：页面启动时据此去取云端清单（所以本文件要在 app.js 之前加载） */
   window.HJL_UPLOAD_CONFIG = CONFIG;
 
+  /* 本机清单存在 localStorage 里的键名 —— app.js 读的是同一个名字，改要两边一起改 */
+  var MINE_KEY = "hjl-photo-mine-v1";
+  window.HJL_MINE_KEY = MINE_KEY;
+
   var root = document.getElementById("paste");
   if (!root) return;
 
@@ -53,7 +67,133 @@
 
   var rows = [];                            /* 每一行：文件 + 它那三个输入框 */
 
+  var mineInfo = document.getElementById("paste-mine-info");
+  var exportBtn = document.getElementById("paste-export");
+  var wipeBtn = document.getElementById("paste-wipe");
+  var outBox = document.getElementById("paste-out");
+  var outMsg = document.getElementById("paste-out-msg");
+
   function ready() { return !!CONFIG.cloudName && !!CONFIG.uploadPreset; }
+
+  /* ---------- 本机清单：这台电脑传过的照片留一份底 ---------- */
+  function readMine() {
+    try {
+      var raw = localStorage.getItem(MINE_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      if (Object.prototype.toString.call(arr) !== "[object Array]") return [];
+      return arr.filter(function (p) {
+        return p && typeof p.src === "string" && p.src.indexOf("https://") === 0;
+      });
+    } catch (e) { return []; }
+  }
+
+  function saveMine(arr) {
+    try { localStorage.setItem(MINE_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+
+  /* 同一张地址只留一条（后传的信息更准，覆盖掉旧的） */
+  function remember(item) {
+    var arr = readMine().filter(function (p) { return p.src !== item.src; });
+    arr.push(item);
+    saveMine(arr);
+    showMineCount();
+  }
+
+  function showMineCount() {
+    if (!mineInfo) return;
+    var n = readMine().length;
+    mineInfo.textContent = n
+      ? "这台电脑上记着 " + n + " 张照片。云端清单读不到时，显示的就是这些。"
+      : "这台电脑上还没记下照片。";
+  }
+
+  function qs(v) {
+    return "'" + String(v == null ? "" : v).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'";
+  }
+
+  /* 导出成 photos.js 能直接用的内容，方便提交出去给所有人看 */
+  function exportCode() {
+    var arr = readMine();
+    if (!arr.length) return "";
+    var order = [], buckets = {}, titles = {};
+    arr.forEach(function (p) {
+      var tm = String(p.time || "").trim().slice(0, 7);
+      var pl = String(p.place || "").trim();
+      var key = (tm || "无") + "\u0000" + pl;
+      if (!buckets[key]) {
+        buckets[key] = [];
+        order.push(key);
+        titles[key] = tm ? (pl ? tm + " " + pl : tm) : "（还没写时间的）";
+      }
+      buckets[key].push(p);
+    });
+    var L = ["window.HJL_PHOTOS = {", "  groups: ["];
+    order.forEach(function (key, gi) {
+      L.push("    {");
+      L.push("      title: " + qs(titles[key]) + ",");
+      L.push("      desc: '',");
+      L.push("      photos: [");
+      buckets[key].forEach(function (p, pi, all) {
+        L.push("        { src: " + qs(p.src) + ", time: " + qs(p.time) +
+               ", place: " + qs(p.place) + ", note: " + qs(p.note) + " }" +
+               (pi < all.length - 1 ? "," : ""));
+      });
+      L.push("      ]");
+      L.push("    }" + (gi < order.length - 1 ? "," : ""));
+    });
+    L.push("  ]", "};");
+    return L.join("\n");
+  }
+
+  if (exportBtn && outBox) {
+    exportBtn.addEventListener("click", function () {
+      var code = exportCode();
+      if (!code) { say(outMsg, "这台电脑上还没有照片可以导出。"); if (outBox) outBox.hidden = true; return; }
+      outBox.value = code;
+      outBox.hidden = false;
+      outBox.select();
+      var copied = false;
+      try { copied = document.execCommand && document.execCommand("copy"); } catch (e) {}
+      /* navigator.clipboard 在 file:// 下用不了，两条路都试一下，都不行就让用户手选 */
+      if (!copied && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function () {
+          say(outMsg, "已经复制好了。把整段内容覆盖进 photos.js，提交上去，所有人都能看到。");
+        }, function () {
+          say(outMsg, "复制不了自动粘贴板，方框里的字已经选好了，按 Ctrl+C 复制，整段覆盖进 photos.js。");
+        });
+        return;
+      }
+      say(outMsg, copied
+        ? "已经复制好了。把整段内容覆盖进 photos.js，提交上去，所有人都能看到。"
+        : "方框里的字已经选好了，按 Ctrl+C 复制，整段覆盖进 photos.js。");
+    });
+  }
+
+  if (wipeBtn) {
+    wipeBtn.addEventListener("click", function () {
+      var n = readMine().length;
+      if (!n) { say(outMsg, "本来就没有记下什么。"); return; }
+      if (wipeBtn.dataset.armed !== "1") {
+        wipeBtn.dataset.armed = "1";
+        wipeBtn.textContent = "再点一次，确认清空";
+        say(outMsg, "只清这台电脑上的记录，云端的照片不受影响。");
+        setTimeout(function () {
+          wipeBtn.dataset.armed = "";
+          wipeBtn.textContent = "清空本机记录";
+        }, 4000);
+        return;
+      }
+      saveMine([]);
+      wipeBtn.dataset.armed = "";
+      wipeBtn.textContent = "清空本机记录";
+      if (outBox) outBox.hidden = true;
+      say(outMsg, "这台电脑上的记录清掉了 " + n + " 张（云端照片还在）。");
+      showMineCount();
+      if (window.HJL_REFRESH_PHOTOS) window.HJL_REFRESH_PHOTOS();
+    });
+  }
+
+  showMineCount();
 
   function say(node, text) { if (node) node.textContent = text || ""; }
 
@@ -161,7 +301,10 @@
       if (!ok) {
         say(msg, "一张都没传成功，看看每行下面的提示。");
       } else {
-        say(done, "贴上 " + ok + " 张了。刷新页面（或等一分钟），照片那一页就会自动出现。");
+        say(done, "贴上 " + ok + " 张了，照片墙已经重新铺过 —— 往上翻就能看到。");
+        /* 不用手动刷新：告诉渲染那边再来一遍 */
+        if (window.HJL_REFRESH_PHOTOS) window.HJL_REFRESH_PHOTOS();
+        else try { location.reload(); } catch (e) {}
       }
       return;
     }
@@ -219,6 +362,15 @@
         state.textContent = "贴上了";
         li.classList.add("is-done");
         row.ok = true;
+
+        /* 云端清单读不出来也别慌：这台电脑上先记一份，照片立刻就能看到 */
+        remember({
+          src: data.secure_url,
+          time: ctxSafe(row.f.time.value),
+          place: ctxSafe(row.f.place.value),
+          note: ctxSafe(row.f.note.value),
+          created: data.created_at || new Date().toISOString()
+        });
       } else {
         bad((data && data.error && data.error.message) || ("HTTP " + xhr.status));
       }

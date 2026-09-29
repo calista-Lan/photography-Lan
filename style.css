@@ -447,6 +447,37 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
 .paste-err { display: block; margin-top: 8px; font-size: 12px; color: var(--warn); }
 .paste-done { margin: 18px 0 0; font-size: 13px; color: var(--cold); }
 
+/* 本机记录：存在这台浏览器里的那一份清单。传完照片就看得见，
+   不用等云端、也不用开后台开关 —— 代价是只有这台电脑看得到 */
+.paste-mine { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
+.paste-mine-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0;
+  font-size: 13px; color: var(--ink-2);
+}
+.paste-mine-row span { flex: 1 1 200px; }
+
+.paste-gate button,
+.paste-row button,
+.paste-mine-row button {
+  padding: 8px 14px; background: var(--card);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  font-family: var(--font); font-size: 12px; color: var(--ink-2);
+  cursor: pointer; transition: color .18s ease, border-color .18s ease;
+}
+.paste-mine-row button:hover,
+.paste-mine-row button:focus-visible { color: var(--ink); }
+.paste-mine-row button:focus-visible { outline: 2px solid var(--cold); outline-offset: 2px; }
+
+/* 导出的代码框：等宽字体，方便一眼看出是不是整段复制了 */
+.paste-out {
+  display: block; width: 100%; margin-top: 14px; padding: 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
+  font-size: 12px; line-height: 1.7; color: var(--ink-2);
+  white-space: pre; overflow-x: auto; resize: vertical;
+}
+.paste-out[hidden] { display: none; }
+
 /* ---------- 页脚：三栏 + 一条底边 ---------- */
 .foot {
   padding: 72px 0 40px;

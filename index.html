@@ -109,6 +109,18 @@
           </p>
           <ul class="paste-list" id="paste-list"></ul>
           <p class="paste-done" id="paste-done" role="status"></p>
+
+          <!-- 本机记录：这台电脑传过的照片在这儿留了一份底，
+               云端清单读不出来的时候显示的就是这些；也能导出成 photos.js -->
+          <div class="paste-mine">
+            <p class="paste-mine-row">
+              <span id="paste-mine-info">这台电脑上还没记下照片。</span>
+              <button id="paste-export" type="button">导出清单代码</button>
+              <button id="paste-wipe" type="button">清空本机记录</button>
+            </p>
+            <textarea aria-label="导出的 photos.js 内容" class="paste-out" hidden id="paste-out" readonly rows="10" spellcheck="false"></textarea>
+            <p class="paste-msg" id="paste-out-msg" role="status"></p>
+          </div>
         </div>
       </div>
     </details>
