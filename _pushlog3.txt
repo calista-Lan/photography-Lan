@@ -1,0 +1,22 @@
+﻿--- credential helper ---
+manager
+
+--- remote url ---
+https://github.com/calista-Lan/photography-Lan.git
+
+--- push -v ---
+git : Pushing to https://github.com/calista-Lan/photography-Lan.git
+所在位置 行:451 字符: 6
++ $r = git -C $p push -v origin main 2>&1 | Out-String
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Pushing to http...ography-Lan.git 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+EXIT: 128
+--- status -sb ---
+## main...origin/main [gone]
+?? _pushlog.txt
+?? _pushlog2.txt
+

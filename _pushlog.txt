@@ -1,0 +1,22 @@
+﻿--- add ---
+
+--- staged ---
+ app.js     | 90 ++++++++++++++++++++++++++++++--------------------------------
+ index.html | 14 +++-------
+ photos.js  | 28 +++----------------
+ style.css  | 17 +-----------
+ upload.js  | 38 +++++++++++++-------------
+ 5 files changed, 73 insertions(+), 114 deletions(-)
+
+--- commit ---
+[main a0fafe1] photo wall: aquamarine style, side rail, smaller thumbs, trim copy; read cloud list via alternative URL spellings (CDN cached 401)
+ 5 files changed, 73 insertions(+), 114 deletions(-)
+
+--- push ---
+
+--- after ---
+a0fafe1 photo wall: aquamarine style, side rail, smaller thumbs, trim copy; read cloud list via alternative URL spellings (CDN cached 401)
+243a950 picture
+6f31eab group
+
+
