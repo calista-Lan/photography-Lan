@@ -167,21 +167,6 @@ p { margin: 0; }
 .wall { padding: 0 0 clamp(72px, 10vw, 120px); }
 .wall-empty { margin: 0; font-size: 14px; color: var(--ink-3); }
 
-/* 云端清单没读出来时的一行小字。只在真出问题时才由 JS 插进来，
-   平时页面上一个字都不多，所以不占设计里的位置 */
-.wall-note {
-  max-width: var(--wrap); margin: 0 auto 32px; padding: 0 24px;
-  padding-left: calc(24px + var(--inset));
-  font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
-  line-height: 1.9; color: var(--ink-2);
-}
-@media (min-width: 900px) {
-  .wall-note { padding: 0 48px; padding-left: calc(48px + var(--inset)); }
-}
-@media (min-width: 1200px) {
-  .wall-note { padding: 0 64px; padding-left: calc(64px + var(--inset)); }
-}
-
 .grp {
   margin-top: 72px; padding-top: 56px;
   border-top: 1px solid var(--line-soft);
@@ -616,7 +601,7 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
 /* ---------- 窄屏 ---------- */
 @media (max-width: 520px) {
   .wrap, .bar-in, .paste, .rail { padding-left: 16px; padding-right: 16px; }
-  .grp-head, .grid, .wall-note { padding-left: 16px; padding-right: 16px; }
+  .grp-head, .grid { padding-left: 16px; padding-right: 16px; }
   .nav { gap: 16px; }
   .nav a { letter-spacing: .06em; }
   .hero-tag { letter-spacing: .18em; }

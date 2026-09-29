@@ -3,24 +3,28 @@
    --------------------------------------------------------------------------
    现在的流程（不用再回头改 photos.js 了）：
      选照片 → 每行填「时间 / 地点 / 一句心情」→ 传上去
-     → 大约一分钟后，照片就自动出现在页面「照片」那一页里
+     → 别人打开你的站就能看到（Cloudinary 那份清单带缓存，最多晚几分钟）
 
    读清单有两条路，互为备份：
 
-     ① 云端清单（对所有人可见，要后台开一次开关）
+     ① 云端清单（对所有人可见）—— 现在走的就是这条路
         每次上传会把这三项写进照片的 context（元数据），
         页面再去 Cloudinary 读一份「带这个标签的全部照片」清单自动渲染。
-        前提是 **必须在 Cloudinary 后台打开一个开关**（一次性的）：
-            Settings（齿轮）→ Security → Restricted image types
-            → 把 Resource list 这一项取消勾选 → Save（别忘了 Save）
+        前提是后台 Settings（齿轮）→ Security → Restricted image types
+        里 Resource list 这一项必须是取消勾选的 —— 已经开好了。
 
-     ② 本机清单（立刻可见，但只有这台电脑看得到）
+        ⚠️ 那个 401 的坑：Cloudinary 的 CDN 会把一次失败连着网址一起缓存，
+        开关明明打开了，老网址还是一直把当初那个 401 还回来。
+        app.js 里准备了三种大小写写法挨个试，就是为了绕开这条被缓存住的老网址，
+        别再改回单一网址 —— 改回去就又读不到了。
+
+     ② 本机清单（上传完立刻可见，是兜底）
         每传成功一张，就把「地址 + 时间地点心情」记一份在这台浏览器的
-        localStorage 里。云端那份清单读不出来的时候，照片照样铺得出来。
-        ——上传完立刻就能看到，不用等、不用开开关。代价是别人和手机看不到。
+        localStorage 里。云端那份清单还没刷出来、或者断网的时候，
+        照片照样铺得出来。别人看不到这份，但它保证你自己的电脑不用等。
 
-     想要全世界都看到、又暂时不想改后台：点下面的「导出清单代码」，
-     把生成的内容整段覆盖进 photos.js，提交上去就行。
+     想让全世界都看到、又不想受那份缓存影响：点下面的「导出清单代码」，
+     把生成的内容整段覆盖进 photos.js，提交上去就行（写死在仓库里，最稳）。
 
    ⚠️ 关于"密钥写进前端"这件事：
       这个站是纯静态的 GitHub Pages，仓库里的文件全部公开，
@@ -102,9 +106,7 @@
   function showMineCount() {
     if (!mineInfo) return;
     var n = readMine().length;
-    mineInfo.textContent = n
-      ? "这台电脑上记着 " + n + " 张照片。云端清单读不到时，显示的就是这些。"
-      : "这台电脑上还没记下照片。";
+    mineInfo.textContent = n ? "本机记着 " + n + " 张照片。" : "本机还没记下照片。";
   }
 
   function qs(v) {
@@ -148,7 +150,7 @@
   if (exportBtn && outBox) {
     exportBtn.addEventListener("click", function () {
       var code = exportCode();
-      if (!code) { say(outMsg, "这台电脑上还没有照片可以导出。"); if (outBox) outBox.hidden = true; return; }
+      if (!code) { say(outMsg, "本机还没有照片可以导出。"); if (outBox) outBox.hidden = true; return; }
       outBox.value = code;
       outBox.hidden = false;
       outBox.select();
@@ -172,11 +174,11 @@
   if (wipeBtn) {
     wipeBtn.addEventListener("click", function () {
       var n = readMine().length;
-      if (!n) { say(outMsg, "本来就没有记下什么。"); return; }
+      if (!n) { say(outMsg, "本机本来就没有记录。"); return; }
       if (wipeBtn.dataset.armed !== "1") {
         wipeBtn.dataset.armed = "1";
         wipeBtn.textContent = "再点一次，确认清空";
-        say(outMsg, "只清这台电脑上的记录，云端的照片不受影响。");
+        say(outMsg, "只清本机记录，云端的照片不动。");
         setTimeout(function () {
           wipeBtn.dataset.armed = "";
           wipeBtn.textContent = "清空本机记录";
@@ -187,7 +189,7 @@
       wipeBtn.dataset.armed = "";
       wipeBtn.textContent = "清空本机记录";
       if (outBox) outBox.hidden = true;
-      say(outMsg, "这台电脑上的记录清掉了 " + n + " 张（云端照片还在）。");
+      say(outMsg, "清掉了 " + n + " 条本机记录（云端照片还在）。");
       showMineCount();
       if (window.HJL_REFRESH_PHOTOS) window.HJL_REFRESH_PHOTOS();
     });
@@ -301,7 +303,7 @@
       if (!ok) {
         say(msg, "一张都没传成功，看看每行下面的提示。");
       } else {
-        say(done, "贴上 " + ok + " 张了，照片墙已经重新铺过 —— 往上翻就能看到。");
+        say(done, "贴上 " + ok + " 张了。");
         /* 不用手动刷新：告诉渲染那边再来一遍 */
         if (window.HJL_REFRESH_PHOTOS) window.HJL_REFRESH_PHOTOS();
         else try { location.reload(); } catch (e) {}

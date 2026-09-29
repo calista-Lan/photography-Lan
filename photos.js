@@ -34,29 +34,9 @@
 
 window.HJL_PHOTOS = {
   groups: [
-    {
-      title: '（分组标题待填）',
-      desc: '（这个分组的一句话说明待填）',
-      photos: [
-        { slug: '', time: '', place: '', note: '' },
-        { slug: '', time: '', place: '', note: '' }
-      ]
-    },
-    {
-      title: '（分组标题待填）',
-      desc: '（这个分组的一句话说明待填）',
-      photos: [
-        { slug: '', time: '', place: '', note: '' },
-        { slug: '', time: '', place: '', note: '' }
-      ]
-    },
-    {
-      title: '（分组标题待填）',
-      desc: '（这个分组的一句话说明待填）',
-      photos: [
-        { slug: '', time: '', place: '', note: '' },
-        { slug: '', time: '', place: '', note: '' }
-      ]
-    }
+    /* 照片走「贴一张新照片」传上去的话，这里留空就行 —— 页面自己会读云端清单。
+       想手写一组，照这个形状加：
+       { title: '2026.09 海边', desc: '',
+         photos: [ { slug: 'hai-bian', time: '2026.09', place: '海边', note: '风大' } ] } */
   ]
 };

@@ -7,7 +7,7 @@
      ③ 点一张照片 → 全屏大图（←/→ 翻，Esc 关，手机上左右滑）
      ④ 顶栏导航按滚动位置高亮
      ⑤ 滚动淡入（只播一次，可由 prefers-reduced-motion 关掉）
-     ⑥ 云端清单 + 这台电脑记录的照片合起来铺；两边都没有才留一句话说明
+     ⑥ 云端清单和这台电脑记录的照片合起来铺
      ⑦ 本地图片缺 1600 那一档时自动退回 800，两档都没有才显示占位块
      ⑧ 页脚年份、返回封面 / 浏览画廊 / 返回顶部
    没有任何自动播放的动画，没有外部依赖。
@@ -473,7 +473,7 @@
     });
 
     if (!DATA.length) {
-      groupsBox.appendChild(el("p", "wall-empty", "还没有照片。往下滚到页面最底，有一段「贴一张新照片」。"));
+      groupsBox.appendChild(el("p", "wall-empty", "还没有照片。"));
     }
 
     updateHero();
@@ -507,32 +507,6 @@
         };
       });
     } catch (e) { return []; }
-  }
-
-  /* 云端清单读不出来的时候留一行小字 —— 原来是完全静默的，
-     传了照片却看不到、又没有任何提示，最容易让人以为照片丢了 */
-  var cloudNote = null;
-  function noteCloudFail(status, mine) {
-    if (!groupsBox || cloudNote) return;
-    if (mine && mine.length) {
-      cloudNote = el("p", "wall-note",
-        "现在显示的是这台电脑上记录下来的 " + mine.length + " 张照片，别的设备看不到。" +
-        "想让所有人都能看到：Cloudinary 后台 Settings → Security → Restricted image types，" +
-        "把 Resource list 取消勾选、Save，一分钟后再刷新。");
-      groupsBox.insertBefore(cloudNote, groupsBox.firstChild);
-      return;
-    }
-    /* 后台该怎么操作这段话只给站长看 —— 拿「这一轮有没有输过上传口令」当凭据。
-       访客看到的是一句不带任何内部信息的话。 */
-    var owner = false;
-    try { owner = !!(window.sessionStorage && sessionStorage.getItem("hjl-photo-paste-ok") === "1"); } catch (e) {}
-    cloudNote = el("p", "wall-note", owner
-      ? "暂时还没有照片。" + (status === 401
-          ? "（你自己看的那份：云端清单没读出来，去 Cloudinary 后台 Settings → Security → Restricted image types，" +
-            "把 Resource list 取消勾选、Save，一分钟后再刷新。）"
-          : "（你自己看的那份：云端清单没读到，可能是断网。）")
-      : "暂时还没有照片。");
-    groupsBox.insertBefore(cloudNote, groupsBox.firstChild);
   }
 
   /* 两份清单合起来：同一张地址只留一条（本机那条信息更全，优先） */
@@ -612,41 +586,65 @@
     sweep();
   }
 
-  /* ---- 照片清单：先去 Cloudinary 要那份「按标签列出全部资源」的清单 ----
-     要得到它，必须去后台 Settings → Security → Restricted image types
-     把 Resource list 取消勾选。要不到也没关系，本机那份照样能铺出来。 */
+  /* ---- 照片清单：去 Cloudinary 要那份「按标签列出全部资源」的清单 ----
+     要得到它，后台 Settings → Security → Restricted image types
+     里的 Resource list 必须是取消勾选的。要不到也没关系，本机那份照样能铺出来。
+
+     ⚠️ 这里为什么要准备三种写法挨个试：
+     Cloudinary 的 CDN 会把一次失败（比如那个 401）连着网址一起缓存很久 ——
+     开关明明已经打开了，老网址还是一直把当初那个报错还回来。
+     而换一种大小写就是一条没被缓存过的新网址，能直接回源拿到真清单。
+     所以：先试标准写法，不行就试首字母大写，再不行全大写。 */
+  function listUrls() {
+    var UP = window.HJL_UPLOAD_CONFIG || {};
+    var cloud = String(UP.cloudName || "");
+    var tag = String(UP.tag || "");
+    if (!cloud || !tag) return [];
+
+    /* photo-notebook → Photo-Notebook */
+    var capped = tag.replace(/(^|[^a-zA-Z0-9]+)([a-zA-Z])/g, function (m, sep, ch) {
+      return sep + ch.toUpperCase();
+    });
+
+    return [
+      "https://res.cloudinary.com/" + cloud.toLowerCase() + "/image/list/" + encodeURIComponent(tag) + ".json",
+      "https://res.cloudinary.com/" + cloud + "/image/list/" + encodeURIComponent(capped) + ".json",
+      "https://res.cloudinary.com/" + cloud + "/image/list/" + encodeURIComponent(tag.toUpperCase()) + ".json"
+    ];
+  }
+
   function loadCloudPhotos() {
-    var UP = window.HJL_UPLOAD_CONFIG;
-    var mine = readMine();
     if (!groupsBox) return;
+    var urls = listUrls();
+    if (!urls.length) { renderSaved(readMine()); return; }
+    tryList(urls, 0);
+  }
 
-    if (!UP || !UP.cloudName || !UP.tag) { renderSaved(mine); return; }
+  /* 一个一个试：哪个先返回 200 就用哪个；全都不行就只剩本机那份 */
+  function tryList(urls, i) {
+    if (i >= urls.length) { renderSaved(readMine()); return; }
 
-    var host = "https://res.cloudinary.com/" + String(UP.cloudName).toLowerCase();
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", host + "/image/list/" + encodeURIComponent(UP.tag) + ".json", true);
-    xhr.timeout = 12000;
+    xhr.open("GET", urls[i], true);
+    xhr.timeout = 10000;
 
-    /* 超时 / 断网也会走到 onloadend，status 是 0 */
+    /* 超时 / 断网也会走到 onloadend，这时候 status 是 0，接着试下一个 */
     xhr.onloadend = function () {
-      var cloudPics = [];
       if (xhr.status === 200) {
+        var cloudPics = [];
         try {
           var data = JSON.parse(xhr.responseText);
           cloudPics = ((data && data.resources) || []).map(fromCloud).filter(function (p) { return !!p.src; });
         } catch (e) { cloudPics = []; }
+        renderSaved(mergePics(cloudPics, readMine()));
+        return;
       }
-
-      var pics = mergePics(cloudPics, mine);
-      renderSaved(pics);
-
-      /* 全靠本机那份的时候，得说清楚「别的设备看不到」 */
-      if (!cloudPics.length && mine.length) noteCloudFail(xhr.status, mine);
-      else if (!pics.length && xhr.status !== 200) noteCloudFail(xhr.status, null);
+      tryList(urls, i + 1);
     };
 
     xhr.send();
   }
+
 
   /* 给上传那边的脚本用：传完叫一声，照片墙就地重铺，不用手动刷新 */
   window.HJL_REFRESH_PHOTOS = function () {

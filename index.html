@@ -46,7 +46,7 @@
       <div class="wrap">
         <div id="groups"></div>
         <noscript>
-          <p class="wall-empty">照片是用 JavaScript 按清单铺上来的。不加载脚本的话照片显示不出来，其他文字照常可读。</p>
+          <p class="wall-empty">照片需要打开 JavaScript 才能显示。</p>
         </noscript>
       </div>
     </section>
@@ -62,27 +62,22 @@
 
           <div class="fact reveal">
             <h3>为什么喜欢拍</h3>
-            <p>（写你自己想说的话，多长都行，口语一点更好。）</p>
           </div>
 
           <div class="fact reveal">
             <h3>平时拍什么</h3>
-            <p>（路上、家里、旅行、吃的、朋友……想到什么写什么。）</p>
           </div>
 
           <div class="fact reveal">
             <h3>用什么拍</h3>
-            <p>（手机也完全可以写进来，这里不谈器材参数。）</p>
           </div>
 
           <div class="fact reveal">
             <h3>拍照时的小习惯</h3>
-            <p>（比如总是蹲下来拍、喜欢阴天拍、拍完当天一定整理……）</p>
           </div>
 
           <div class="fact reveal">
             <h3>联系我</h3>
-            <p>（留一个能找到你的地方就行，一行足矣。）</p>
           </div>
 
         </div>
@@ -93,7 +88,7 @@
     <details class="paste no-print" id="paste">
       <summary>UPLOAD / 贴一张新照片</summary>
       <div class="paste-body">
-        <p class="paste-tip">选照片 → 每行填上时间、地点、一句心情 → 传上去。大约一分钟后，照片就自己出现在上面的照片墙里了。</p>
+        <p class="paste-tip">选照片，填上时间、地点、一句心情，传上去。</p>
 
         <form class="paste-gate" id="paste-gate">
           <label for="paste-code">口令</label>
@@ -110,11 +105,10 @@
           <ul class="paste-list" id="paste-list"></ul>
           <p class="paste-done" id="paste-done" role="status"></p>
 
-          <!-- 本机记录：这台电脑传过的照片在这儿留了一份底，
-               云端清单读不出来的时候显示的就是这些；也能导出成 photos.js -->
+          <!-- 本机记录：这台电脑传过的照片在这儿留了一份底，也能导出成 photos.js -->
           <div class="paste-mine">
             <p class="paste-mine-row">
-              <span id="paste-mine-info">这台电脑上还没记下照片。</span>
+              <span id="paste-mine-info">本机还没记下照片。</span>
               <button id="paste-export" type="button">导出清单代码</button>
               <button id="paste-wipe" type="button">清空本机记录</button>
             </p>
