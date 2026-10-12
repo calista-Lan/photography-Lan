@@ -30,7 +30,7 @@
   /* 桌面端：标题、date、前言、第一列照片统一往里缩 150px —— 整站呼吸感的来源 */
   --inset: 0px;
   /* 桌面端单张照片的宽度上限（2:3 裁切，高 = 宽 × 1.5）。想再小改这一个数就够 */
-  --photo-w: 340px;
+  --photo-w: 227px;
   --bar-h: 64px;
   --font: "Helvetica Neue", Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI",
           "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC",
@@ -212,9 +212,9 @@ p { margin: 0; }
   .cell.a { padding-left: var(--inset); }
   .cell.b { padding-right: var(--inset); }
 
-  /* 照片不再撑满整列：宽度封顶 340（2:3 → 340×510），一张别占掉大半屏高，
-     省下来的地方全部还给白。列本身就比 340 窄的时候（窗口 1200 以下）
-     这条不生效，照片照旧跟着列走。 */
+  /* 照片不再撑满整列：宽度封顶 227（2:3 → 227×340），一张别占掉大半屏高，
+     省下来的地方全部还给白。这个数就是 --photo-w，想再调只改那一处。
+     （窗口刚过 900 的那一小段，第一列本身还不到 227，这里就不会生效。） */
   .cell .thumb,
   .cell .cap { max-width: var(--photo-w); }
   /* 第二列的照片贴着自己那格的右边，左右两列才对称 */
