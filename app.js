@@ -126,7 +126,6 @@
       var fallback = el("div", "thumb");
       fallback.appendChild(el("span", "ph", "待填"));
       fig.insertBefore(fallback, fig.firstChild);
-      updateHero();          /* 封面正好是这张的话，换一张 */
     });
 
     btn.appendChild(img);
@@ -151,7 +150,6 @@
     var grid = fig.parentNode;
     if (grid && grid.removeChild) grid.removeChild(fig);
     pruneEmptyGroup(grid);
-    updateHero();
     updateHeroYear();
     buildRail();
   }
@@ -456,29 +454,11 @@
     rail.classList.toggle("is-on", r.bottom > 140 && r.top < window.innerHeight - 140);
   }
 
-  /* ================= 6. 封面：最新一张照片 + 跨越的年份 ================= */
-  var heroImg = document.getElementById("hero-img");
+  /* ================= 6. 封面：右上角那行年份 =================
+     首屏不放照片了（原来这里会挑最新一张铺满全屏，已随封面照片一起去掉）。
+     年份是从所有照片的「时间」里数出来的，跟照片墙用的是同一份数据。 */
   var heroYear = document.getElementById("hero-year");
   var heroSection = document.getElementById("hero");
-
-  function updateHero() {
-    if (!heroImg) return;
-    var first = document.querySelector(".cell.has-pic");
-    if (!first || !first.__p) { heroImg.hidden = true; return; }
-    var p = first.__p;
-    var url = picUrl(p, 1600);
-    if (heroImg.getAttribute("src") === url) return;
-    heroImg.hidden = true;
-    heroImg.src = url;
-    heroImg.alt = [p.place, p.time].filter(Boolean).join("，") || "封面照片";
-    heroImg.hidden = false;
-  }
-
-  if (heroImg) {
-    heroImg.addEventListener("load", function () { heroImg.hidden = false; });
-    /* 封面这张没取到：认了，留一屏深色底，字照样看得见 */
-    heroImg.addEventListener("error", function () { heroImg.hidden = true; });
-  }
 
   /* 右上角那行年份：从所有照片的时间里数出来，没写时间就不显示 */
   function updateHeroYear() {
@@ -527,7 +507,6 @@
       groupsBox.appendChild(el("p", "wall-empty", "还没有照片。"));
     }
 
-    updateHero();
     updateHeroYear();
     buildRail();
 
@@ -643,7 +622,6 @@
 
     made.forEach(function (sec) { watchReveal(sec.querySelectorAll(".reveal")); });
     buildRail();
-    updateHero();          /* 最新的那张就是封面 */
     updateHeroYear();
     sweep();
   }

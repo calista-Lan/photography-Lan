@@ -108,21 +108,15 @@ p { margin: 0; }
 .nav a:hover { color: var(--ink); }
 .nav a[aria-current="page"] { color: var(--ink); }
 
-/* ---------- 封面：一屏照片 ---------- */
+/* ---------- 封面：一屏空底 ---------- */
 .hero {
   position: relative;
   height: 100vh; height: 100svh;
   overflow: hidden;
+  /* 照片没了，这一条就是封面的底色 —— 想换浅色只改这一个值 */
   background: #12110f;
 }
 .js .hero { cursor: pointer; }
-.hero-img {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  filter: none; opacity: 1; mix-blend-mode: normal;
-}
-.hero-img[hidden] { display: none; }
 
 .hero-tag {
   position: absolute; top: calc(var(--bar-h) + 24px);
@@ -615,7 +609,6 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
   .bar, .lb, .paste, .hero-enter, .rail, .no-print { display: none; }
   body { background: #fff; font-size: 12px; }
   .hero { height: auto; background: #fff; }
-  .hero-img { position: static; height: auto; }
   .wall, .about { padding-bottom: 0; }
   .js .reveal { opacity: 1; }
   .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
