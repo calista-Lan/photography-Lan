@@ -109,7 +109,16 @@
         img.src = picUrl(p, 800);
         return;
       }
-      /* 还是失败：换成占位块，并且不再让它出现在大图里 */
+      /* 云端照片（带 p.src 的）取不到 —— 十有八九是已经在 Cloudinary 上删掉了。
+         这一格直接从墙上撤掉，别留一块灰扑扑的「待填」在那儿，看着像没删干净。 */
+      if (p.src) {
+        dropCell(fig);
+        confirmGone(p.src, function () { dropMine(p.src); });
+        return;
+      }
+
+      /* 本地图（photos/xxx.jpg 那种）还是失败：换成占位块。
+         这种空位是有意留着的，所以保留，只是不再让它出现在大图里 */
       fig.classList.remove("has-pic");
       fig.classList.add("is-empty");
       delete fig.__p;
@@ -132,6 +141,48 @@
 
     btn.addEventListener("click", function () { openLb(fig); });
     return fig;
+  }
+
+  /* ---- 照片没了就别留空壳 ----
+     云端那张取不到时：先把这一格从墙上撤掉，再去确认一次是不是真的 404 ——
+     确实删了就把本机那份记录也一起抹掉（不抹的话，它每回打开都来把灰块重铺一遍）；
+     万一只是网抖一下，记录留着，下次打开还能再试。 */
+  function dropCell(fig) {
+    var grid = fig.parentNode;
+    if (grid && grid.removeChild) grid.removeChild(fig);
+    pruneEmptyGroup(grid);
+    updateHero();
+    updateHeroYear();
+    buildRail();
+  }
+
+  function confirmGone(src, then) {
+    try {
+      var x = new XMLHttpRequest();
+      x.open("HEAD", src, true);
+      x.timeout = 8000;
+      x.onloadend = function () { if (x.status === 404) then(); };
+      x.send();
+    } catch (e) {}
+  }
+
+  /* 一格不剩的分组连标题一起撤掉；整面墙都空了，就把「还没有照片。」放回来 */
+  function pruneEmptyGroup(grid) {
+    if (!grid || grid.querySelector(".cell")) return;
+    var sec = grid.parentNode;
+    if (sec && sec.parentNode) sec.parentNode.removeChild(sec);
+    if (groupsBox && !groupsBox.querySelector(".cell") && !groupsBox.querySelector(".wall-empty")) {
+      groupsBox.appendChild(el("p", "wall-empty", "还没有照片。"));
+    }
+  }
+
+  /* 从本机记录里抹掉一张（云端已确认删掉的时候用） */
+  function dropMine(src) {
+    if (!src) return;
+    try {
+      var arr = readMine().filter(function (p) { return srcKey(p.src) !== srcKey(src); });
+      localStorage.setItem(MINE_KEY, JSON.stringify(arr));
+    } catch (e) {}
   }
 
   function addGroup(opt) {
@@ -509,12 +560,23 @@
     } catch (e) { return []; }
   }
 
-  /* 两份清单合起来：同一张地址只留一条（本机那条信息更全，优先） */
+  /* 同一张照片会有两种地址写法 ——
+     上传接口给的 secure_url 带一段 /v1790689384/ 版本号，
+     云端清单拼出来的地址不带。要是拿整串去比，两边对不上，
+     同一张照片就会在墙上铺两遍。所以比之前先把版本号抹掉。 */
+  function srcKey(src) {
+    return String(src || "").replace(/\/v\d+\//, "/");
+  }
+
+  /* 两份清单合起来：同一张只留一条（本机那条信息更全，优先） */
   function mergePics(cloudPics, mine) {
     var out = mine.slice();
     var seen = {};
-    out.forEach(function (p) { seen[p.src] = 1; });
-    cloudPics.forEach(function (p) { if (!seen[p.src]) { seen[p.src] = 1; out.push(p); } });
+    out.forEach(function (p) { seen[srcKey(p.src)] = 1; });
+    cloudPics.forEach(function (p) {
+      var k = srcKey(p.src);
+      if (!seen[k]) { seen[k] = 1; out.push(p); }
+    });
     out.sort(function (a, b) { return (b.created || "").localeCompare(a.created || ""); });
     return out;
   }
@@ -555,12 +617,12 @@
     /* 本地清单（photos.js）里如果写着同一张照片，别显示两遍 ——
        导出的代码贴回去、本机那份又没清的时候，两边就会同时撞上 */
     var seenSrc = {};
-    pics.forEach(function (p) { if (p.src) seenSrc[p.src] = 1; });
+    pics.forEach(function (p) { if (p.src) seenSrc[srcKey(p.src)] = 1; });
     if (Object.keys(seenSrc).length) {
       each(groupsBox.querySelectorAll(".grp:not(.grp-saved)"), function (sec) {
         var left = 0;
         each(sec.querySelectorAll(".cell"), function (c) {
-          if (c.__p && c.__p.src && seenSrc[c.__p.src]) {
+          if (c.__p && c.__p.src && seenSrc[srcKey(c.__p.src)]) {
             if (c.parentNode) c.parentNode.removeChild(c);
             return;
           }
