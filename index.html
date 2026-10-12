@@ -6,7 +6,7 @@
   <title>拍照手札 · 黄锦澜</title>
   <meta content="黄锦澜的拍照手札：一组随手拍下的照片，每张只记时间、地点和当时的一句心情。" name="description"/>
   <meta content="黄锦澜" name="author"/>
-  <meta content="#fcfcfa" name="theme-color"/>
+  <meta content="#F5F2EB" name="theme-color"/>
   <!-- 有脚本时才启用「滚动淡入」；没有脚本，内容照样全部可见 -->
   <script>document.documentElement.classList.add("js");</script>
   <link href="./style.css" rel="stylesheet"/>
@@ -38,13 +38,27 @@
       </button>
     </section>
 
-    <!-- ============ 照片墙：分组由 photos.js 清单和云端照片自动生成 ============ -->
-    <section class="wall" id="photos">
-      <!-- 侧边分类：按「时间 + 地点」列出每一组，滚到哪一组就点亮哪一条。
-           内容由 app.js 按真实照片的分组自动生成，不写死任何一项 -->
-      <nav aria-label="照片分类" class="rail" id="rail"></nav>
+    <!-- ============ 精选作品：杂志式瀑布流 ============
+         照片由 photos.js 清单 + 本机记录 + 云端清单自动合并铺出，
+         大屏四列 / 平板三列 / 手机两列，高度跟原始比例走，不裁切。
+         首铺 12 张，LOAD MORE / VIEW ALL 负责剩下的。 -->
+    <section class="works" id="photos">
       <div class="wrap">
-        <div id="groups"></div>
+        <header class="m-head reveal">
+          <div class="m-head-l">
+            <p class="m-kicker">精选作品 — SELECTED PHOTO NOTES</p>
+            <h2 class="m-title">Featured Works</h2>
+          </div>
+          <button class="m-all" hidden id="m-all" type="button">VIEW ALL / 查看全部</button>
+        </header>
+
+        <div class="mgrid" id="m-grid"></div>
+        <p class="wall-empty" hidden id="m-empty">还没有照片。</p>
+
+        <div class="m-foot no-print">
+          <button class="m-more" hidden id="m-more" type="button">LOAD MORE / 加载更多</button>
+        </div>
+
         <noscript>
           <p class="wall-empty">照片需要打开 JavaScript 才能显示。</p>
         </noscript>

@@ -1,24 +1,24 @@
 /* ==========================================================================
-   《拍照手札》样式 —— 极简 / 照片优先
+   《拍照手札》样式 —— 奶油白纸面 / 艺术杂志式排版
    --------------------------------------------------------------------------
-   版式照着「水色灯塔 / AQUAMARINE BEACON」那一类作品集来的：
-     满屏封面 → 分组（标题 + date 小字 + 一句前言）→ 两列错落照片 →
-     米白大图（上一行分组名、下两栏 DATE / LOCATION）→ 三栏页脚。
+   版式：封面（待重排）→ FEATURED WORKS 杂志式瀑布流 → 关于 → 页脚。
+     瀑布流：CSS Grid 摆 N 根列（大屏 4 / 平板 3 / 手机 2），照片按原始比例
+     自然生长，不裁切、不封顶；卡片无边框、无阴影、无大圆角，留白给足。
    三条老规矩照旧：
-     1. 照片是唯一的主角。照片本体上 **不许** 出现 filter / opacity /
-        mix-blend-mode / transform —— 悬停也不放大、不发光、不压暗。
-        装饰只允许出现在照片之外（外沿一条细线、下面两行小字）。
-     2. 颜色只有四档灰 + 一个冷调强调色，没有渐变、没有毛玻璃、没有重阴影。
+     1. 照片本体上不许出现 filter / mix-blend-mode / opacity 动画；
+        悬停放大 1.03 是唯一的 transform 例外（只作用在图片这个纯图形上）。
+        带字的元素（VIEW PHOTO 圆标、说明文字）一律只动透明度，不动位置、不缩放。
+     2. 颜色只有几档灰 + 一个冷调强调色，没有渐变、没有毛玻璃、没有重阴影。
         顶栏是半透明，但 **不用 backdrop-filter**（会糊字），直接铺一层实色。
-     3. 圆角全站统一 2px；分隔线一律 rgba(0,0,0,.03~.06)，淡到几乎看不见。
+     3. 圆角全站统一 2px；分隔线一律 rgba(0,0,0,.03~.08)，淡到几乎看不见。
    ========================================================================== */
 
 /* ---------- 纸与墨 ---------- */
 :root {
-  --canvas: #fcfcfa;          /* 页面底：米白，不是纯白 */
+  --canvas: #F5F2EB;          /* 页面底：奶油白 */
   --card: #ffffff;            /* 卡片 / 顶栏 / 大图底 */
-  --fill: #f0efec;            /* 照片未填时的占位块 */
-  --ink: #121212;             /* 主文字 */
+  --fill: #f0efec;            /* 照片未到时的占位底 */
+  --ink: #121212;             /* 主文字：近黑 */
   --ink-2: #6f6f6f;           /* 次级文字 */
   --ink-3: #a1a1a0;           /* 说明、meta */
   --line: rgba(0, 0, 0, .06);
@@ -27,14 +27,15 @@
   --warn: #8c2f2a;            /* 只在出错提示里出现 */
   --radius: 2px;
   --wrap: 1400px;
-  /* 桌面端：标题、date、前言、第一列照片统一往里缩 150px —— 整站呼吸感的来源 */
+  /* 桌面端：关于区等统一往里缩 150px —— 呼吸感的来源 */
   --inset: 0px;
-  /* 桌面端单张照片的宽度上限（2:3 裁切，高 = 宽 × 1.5）。想再小改这一个数就够 */
-  --photo-w: 227px;
   --bar-h: 64px;
   --font: "Helvetica Neue", Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI",
           "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC",
           "Noto Sans SC", Arial, sans-serif;
+  /* 杂志式标题用的衬线字：不加载任何字体文件，全走系统自带 */
+  --serif: Georgia, "Times New Roman", "Songti SC", "STSong", "SimSun",
+           "Noto Serif CJK SC", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
           "Courier New", monospace;
 }
@@ -82,7 +83,7 @@ p { margin: 0; }
 /* ---------- 顶栏 ---------- */
 .bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 40;
-  background: rgba(252, 252, 250, .94);
+  background: rgba(245, 242, 235, .94);
   border-bottom: 1px solid var(--line-soft);
 }
 .bar-in {
@@ -157,163 +158,128 @@ p { margin: 0; }
 .hero-enter:hover { color: #ffffff; }
 .hero-enter:focus-visible { outline: 1px solid rgba(255, 255, 255, .8); outline-offset: 4px; }
 
-/* ---------- 照片墙 ---------- */
-.wall { padding: 0 0 clamp(72px, 10vw, 120px); }
+/* ---------- 精选作品：杂志式瀑布流 ----------
+   列容器由 JS 摆（大屏 4 / 平板 3 / 手机 2 根），卡片按横向顺序轮流分进去，
+   高度跟照片原始比例走 —— 不裁切、不封顶。
+   悬停放大 1.03 只作用在图片本体（纯图形，可以做 transform）；
+   VIEW PHOTO 圆标和说明文字只做透明度 —— 带字的元素一律不动位置。 */
+.works { padding: 0 0 clamp(72px, 10vw, 120px); }
 .wall-empty { margin: 0; font-size: 14px; color: var(--ink-3); }
+.wall-empty[hidden] { display: none; }
 
-.grp {
-  margin-top: 72px; padding-top: 56px;
-  border-top: 1px solid var(--line-soft);
-  /* 分类条点过来时，别让这一组的开头藏到顶栏底下 */
-  scroll-margin-top: calc(var(--bar-h) + 20px);
+.m-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 16px 32px; flex-wrap: wrap;
+  padding: clamp(56px, 9vw, 110px) 0 36px;
+  border-bottom: 1px solid var(--line);
 }
-@media (min-width: 900px) { .grp { margin-top: 128px; padding-top: 80px; } }
+.m-kicker {
+  margin: 0 0 12px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.m-title {
+  margin: 0;
+  font-family: var(--serif); font-weight: 400;
+  font-size: clamp(30px, 4.6vw, 54px);
+  line-height: 1.08; letter-spacing: .01em; color: var(--ink);
+}
+.m-all {
+  padding: 10px 2px;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--ink-2);
+  transition: color .18s ease, border-color .18s ease;
+}
+.m-all:hover { color: var(--ink); border-bottom-color: var(--ink); }
+.m-all:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px; }
+.m-all[hidden] { display: none; }
 
-.grp-head {
-  max-width: var(--wrap); margin: 0 auto; padding: 0 24px;
-  padding-left: calc(24px + var(--inset));
-}
-@media (min-width: 900px) { .grp-head { padding: 0 48px; padding-left: calc(48px + var(--inset)); } }
-@media (min-width: 1200px) { .grp-head { padding: 0 64px; padding-left: calc(64px + var(--inset)); } }
-
-.grp-title { margin: 0; font-size: 20px; font-weight: 500; letter-spacing: .02em; }
-@media (min-width: 900px) { .grp-title { font-size: 24px; } }
-.grp-date {
-  margin: 6px 0 0;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
-  color: var(--ink-3);
-}
-.grp-desc {
-  margin: 18px 0 0; max-width: 46ch;
-  font-size: 13px; font-weight: 300; line-height: 1.85; letter-spacing: .02em;
-  color: var(--ink-2);
-}
-.grp-desc p + p { margin-top: 8px; }
-
-.grid {
-  max-width: var(--wrap); margin: 48px auto 0; padding: 0 24px;
+.mgrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px 16px;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  gap: 0 clamp(16px, 3.2vw, 48px);
+  padding-top: clamp(36px, 5vw, 60px);
 }
-@media (min-width: 900px) {
-  .grid { margin-top: 80px; padding: 0 48px; gap: 56px 48px; }
-}
-@media (min-width: 1200px) { .grid { padding: 0 64px; gap: 72px 64px; } }
+.mcol { min-width: 0; }
+.m-item { margin: 0 0 clamp(36px, 4.5vw, 60px); }
 
-/* 两列错落：第一列往里缩，第二列往外让 —— 整站最像「作品集」的一笔 */
-@media (min-width: 900px) {
-  .cell.a { padding-left: var(--inset); }
-  .cell.b { padding-right: var(--inset); }
-
-  /* 照片不再撑满整列：宽度封顶 227（2:3 → 227×340），一张别占掉大半屏高，
-     省下来的地方全部还给白。这个数就是 --photo-w，想再调只改那一处。
-     （窗口刚过 900 的那一小段，第一列本身还不到 227，这里就不会生效。） */
-  .cell .thumb,
-  .cell .cap { max-width: var(--photo-w); }
-  /* 第二列的照片贴着自己那格的右边，左右两列才对称 */
-  .cell.b .thumb,
-  .cell.b .cap { margin-left: auto; }
-}
-
-.cell { margin: 0; }
-
-.thumb {
-  display: block; width: 100%; margin: 0; padding: 0;
-  aspect-ratio: 2 / 3;
+.m-media {
+  position: relative; display: block; width: 100%; margin: 0; padding: 0;
   background: var(--fill);
-  border: 0;
-  border-radius: var(--radius);
-  overflow: hidden;
-  outline: 1px solid transparent;
-  outline-offset: 0;
+  border: 0; border-radius: var(--radius);
+  overflow: hidden; cursor: pointer;
 }
-/* 照片本体：只有这一条，任何滤镜 / 透明度 / 缩放都不许加进来 */
-.thumb img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  filter: none;
-  opacity: 1;
-  mix-blend-mode: normal;
+/* 原始比例：宽高比由标记上的 width / height 先占好位，图片没到也不跳版 */
+.m-media img {
+  display: block; width: 100%; height: auto;
+  transition: transform .65s cubic-bezier(.22, .61, .36, 1);
 }
+.m-media:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px; }
 
-button.thumb { cursor: pointer; transition: outline-color .16s ease; }
-button.thumb:hover { outline-color: rgba(0, 0, 0, .18); }
-button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px; }
-
-.cell.is-empty .thumb { display: flex; align-items: center; justify-content: center; }
-.ph {
-  font-family: var(--mono);
-  font-size: 10px; letter-spacing: .2em; color: var(--ink-3);
+/* 悬停缓慢放大 1.03 —— 只给有鼠标的设备；触摸屏没有悬停，图片保持原样 */
+@media (hover: hover) {
+  .m-item:hover .m-media img { transform: scale(1.03); }
 }
 
-/* 缩略图下只留一行：写了心情才显示，时间地点留给大图 */
-.cap { margin-top: 12px; }
-.cap .c-note {
-  margin: 0; font-size: 12px; line-height: 1.65;
-  letter-spacing: .02em; color: var(--ink-2);
+/* VIEW PHOTO 圆标：居中用负 margin（有字的元素不做 transform，静态的也不做） */
+.m-hint {
+  position: absolute; left: 50%; top: 50%;
+  width: 92px; height: 92px; margin: -46px 0 0 -46px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 12px; text-align: center;
+  border-radius: 50%;
+  background: rgba(245, 242, 235, .92);
+  font-family: var(--mono); font-size: 8px; letter-spacing: .16em;
+  line-height: 1.5; text-transform: uppercase; color: var(--ink);
+  opacity: 0; transition: opacity .3s ease;
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .m-item:hover .m-hint { opacity: 1; }
+}
+@media (hover: none) {
+  .m-hint { display: none; }
 }
 
-/* ---------- 侧边分类：时间 + 地点 ----------
-   宽屏：钉在左边那条本来就留空的凹槽里（就是 --inset 让出来的 150px），
-         一条 hairline 竖线立在右侧，和参考站那根列表是一个意思；
-         只在照片区滚进来的时候才淡出，封面和页脚那里不出现。
-   窄屏：没有那条凹槽，改成照片上面横着排的一条，能左右滑。 */
-.rail {
-  display: flex; gap: 22px;
-  max-width: var(--wrap); margin: 0 auto;
-  padding: 0 24px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+/* 图下说明：编号 | 标题 +（地点 · 日期） */
+.m-cap {
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 14px; padding-top: 12px;
 }
-.rail::-webkit-scrollbar { display: none; }
-.rail[hidden] { display: none; }
-
-.rail-item {
-  flex: none;
-  padding: 4px 0;
-  background: none; border: 0;
-  font-family: var(--font);
-  font-size: 12px; line-height: 1.5; letter-spacing: .04em;
+.m-no {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  line-height: 1.7; color: var(--ink-3);
+}
+.m-cap-body { display: block; min-width: 0; }
+.m-c-title {
+  display: block;
+  font-size: 13px; line-height: 1.6; letter-spacing: .02em; color: var(--ink);
+}
+.m-c-meta {
+  display: block; margin-top: 2px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
   color: var(--ink-3);
-  white-space: nowrap; cursor: pointer;
-  transition: color .18s ease;
 }
-.rail-item:hover { color: var(--ink); }
-.rail-item[aria-current="true"] { color: var(--ink); font-weight: 500; }
-.rail-item:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px; }
-
-@media (min-width: 900px) {
-  .rail {
-    display: block;
-    position: fixed;
-    top: calc(var(--bar-h) + 48px);
-    left: 96px;                              /* 48 内容留白 + 48 网格留白 */
-    width: calc(var(--inset) - 34px);
-    max-width: none; margin: 0;
-    padding: 0 16px 0 0;
-    border-right: 1px solid var(--line-soft);
-    overflow: hidden auto;
-    max-height: calc(100vh - var(--bar-h) - 96px);
-    opacity: 0; pointer-events: none;         /* 照片区没到就不显示 */
-    transition: opacity .3s ease;
-  }
-  .rail::-webkit-scrollbar { display: none; }
-  .rail.is-on { opacity: 1; pointer-events: auto; }
-
-  .rail-item {
-    display: block; width: 100%;
-    /* 左边这条 2px 一直占着位，点亮时只换颜色，条子不跳 */
-    padding: 5px 0 5px 10px;
-    border-left: 2px solid transparent;
-    text-align: left; white-space: normal;
-    font-size: 12px;
-  }
-  .rail-item[aria-current="true"] { border-left-color: var(--ink); }
+/* 说明文字轻微淡入：默认稍淡，悬停转实（只在有鼠标的设备上） */
+@media (hover: hover) {
+  .m-cap { opacity: .7; transition: opacity .3s ease; }
+  .m-item:hover .m-cap { opacity: 1; }
 }
-@media (min-width: 1200px) { .rail { left: 128px; } }
-@media (min-width: 1500px) { .rail { left: calc((100vw - var(--wrap)) / 2 + 128px); } }
+
+.m-foot { display: flex; justify-content: center; padding: clamp(8px, 2vw, 20px) 0 0; }
+.m-more {
+  padding: 15px 38px;
+  background: none; border: 1px solid var(--line); border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .24em;
+  text-transform: uppercase; color: var(--ink-2);
+  transition: color .18s ease, border-color .18s ease;
+}
+.m-more:hover { color: var(--ink); border-color: rgba(0, 0, 0, .34); }
+.m-more:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px; }
+.m-more[hidden] { display: none; }
 
 /* ---------- 关于 ---------- */
 .about { padding: 0 0 clamp(80px, 11vw, 132px); }
@@ -510,7 +476,7 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
   position: fixed; inset: 0; z-index: 60;
   display: flex; flex-direction: column;
   padding: 20px 20px 24px;
-  background: rgba(252, 252, 250, .98);
+  background: rgba(245, 242, 235, .98);
 }
 @media (min-width: 900px) { .lb { padding: 28px 48px 32px; } }
 .lb[hidden] { display: none; }
@@ -594,28 +560,27 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
 
 /* ---------- 窄屏 ---------- */
 @media (max-width: 520px) {
-  .wrap, .bar-in, .paste, .rail { padding-left: 16px; padding-right: 16px; }
-  .grp-head, .grid { padding-left: 16px; padding-right: 16px; }
+  .wrap, .bar-in, .paste { padding-left: 16px; padding-right: 16px; }
   .nav { gap: 16px; }
   .nav a { letter-spacing: .06em; }
   .hero-tag { letter-spacing: .18em; }
-  .grid { gap: 16px 12px; }
+  .mgrid { gap: 0 12px; }
+  .m-item { margin-bottom: 36px; }
+  .m-cap { gap: 0 10px; }
   .lb-meta { grid-template-columns: minmax(0, 1fr); }
   .lb-btn { width: 32px; height: 32px; }
 }
 
 /* ---------- 打印：整理成能直接打印的照片页 ---------- */
 @media print {
-  .bar, .lb, .paste, .hero-enter, .rail, .no-print { display: none; }
+  .bar, .lb, .paste, .hero-enter, .m-all, .m-foot, .no-print { display: none; }
   body { background: #fff; font-size: 12px; }
   .hero { height: auto; background: #fff; }
-  .wall, .about { padding-bottom: 0; }
+  .works, .about { padding-bottom: 0; }
   .js .reveal { opacity: 1; }
-  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-  .cell { break-inside: avoid; page-break-inside: avoid; }
-  .cell.a, .cell.b { padding: 0; }
-  .cell .thumb, .cell .cap { max-width: none; margin-left: 0; }
-  .thumb { outline: none; }
+  .mgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .m-item { break-inside: avoid; page-break-inside: avoid; }
+  .m-media img { transition: none; }
   a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 10px; color: #666; }
 }
 
@@ -624,5 +589,6 @@ button.thumb:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px
   html { scroll-behavior: auto; }
   .js .reveal { opacity: 1; transition: none; }
   .paste > summary::after { transition: none; }
-  button.thumb, .lb-btn, .nav a, .hero-enter, .rail, .rail-item { transition: none; }
+  .m-media img, .m-hint, .m-cap, .m-all, .m-more, .lb-btn, .nav a, .hero-enter { transition: none; }
+  .m-item:hover .m-media img { transform: none; }
 }

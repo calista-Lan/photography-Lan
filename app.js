@@ -2,13 +2,13 @@
    《拍照手札》脚本
    --------------------------------------------------------------------------
    只做八件事：
-     ① 把 photos.js 清单、以及云端传上来的照片渲染成照片墙
-     ② 把最新的一张照片铺成封面，右上角算出照片跨越的年份
+     ① 把 photos.js 清单、本机记录和云端传上来的照片合成一份，铺成杂志式瀑布流
+     ② 每张卡片带编号 / 标题 / 地点 / 日期；先铺 12 张，LOAD MORE / VIEW ALL 铺剩下的
      ③ 点一张照片 → 全屏大图（←/→ 翻，Esc 关，手机上左右滑）
      ④ 顶栏导航按滚动位置高亮
      ⑤ 滚动淡入（只播一次，可由 prefers-reduced-motion 关掉）
-     ⑥ 云端清单和这台电脑记录的照片合起来铺
-     ⑦ 本地图片缺 1600 那一档时自动退回 800，两档都没有才显示占位块
+     ⑥ 云端已删除的照片自动从墙上撤掉，确认 404 后连本机记录一起忘掉
+     ⑦ 本地图片缺 1600 那一档时自动退回 800
      ⑧ 页脚年份、返回封面 / 浏览画廊 / 返回顶部
    没有任何自动播放的动画，没有外部依赖。
    ========================================================================== */
@@ -52,56 +52,87 @@
     if (p.src) img.srcset = picUrl(p, 800) + " 800w, " + picUrl(p, 1600) + " 1600w";
   }
 
-  /* ================= 2. 照片墙 ================= */
-  /* 跟 CSS 里 --photo-w 对齐：宽屏封顶 227；窄屏两列各约 46vw，跟着列走 */
-  var GRID_SIZES = "(max-width: 900px) 46vw, 227px";
+  /* ================= 2. 瀑布流瀑布流（Featured Works） =================
+     布局：CSS Grid 摆 N 根列（大屏 4 / 平板 3 / 手机 2），
+     卡片按「从左到右」的横向顺序轮流分进列里（第 i 张进第 i % 列数 根），
+     高度跟照片原始比例走 —— 不裁切、不封顶。列数变了（转屏 / 拉窗口）就地重分。 */
+  var M_PAGE = 12;                       /* 首铺张数，LOAD MORE 每次补这些 */
+  var M_SIZES = "(max-width: 1200px) 44vw, 28vw";
 
-  /* 分组下面那一行 date: —— 有拍摄时间就写时间跨度，没有就写张数。
-     组名本身已经是「2026.09」这种时候，就别再重复一遍，改报张数 */
-  function dateLineOf(title, photos) {
-    var seen = [], times = [];
-    (photos || []).forEach(function (p) {
-      var t = (p.time || "").trim();
-      if (!t) return;
-      var key = t.slice(0, 7);
-      if (seen.indexOf(key) < 0) { seen.push(key); times.push(t); }
-    });
-    var n = (photos || []).filter(function (p) { return !!(p.src || p.slug); }).length;
-    if (times.length === 1 && title && title.indexOf(seen[0]) >= 0) return n + " 张";
-    if (times.length) return times.join(" / ");
-    return n ? n + " 张" : "";
+  var mbox = document.getElementById("m-grid");
+  var mEmpty = document.getElementById("m-empty");
+  var mMore = document.getElementById("m-more");
+  var mAllBtn = document.getElementById("m-all");
+  var mAllPics = [];                     /* 合并后的全部照片，顺序即编号顺序 */
+  var mShown = 0;                        /* 已经铺出来的张数 */
+  var mLastCols = 0;
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+
+  function picLabel(p) { return [p.place, p.time].filter(Boolean).join("，") || "照片"; }
+  /* 卡片标题：写了心情就用心情当标题，没写用地名，再没有就叫「无题」 */
+  function picTitle(p) { return p.note || p.place || "无题"; }
+  /* 说明行：地点 · 日期（标题已经用了地点的话就不重复） */
+  function picMeta(p) {
+    var m = [];
+    if (p.place && p.place !== p.note) m.push(p.place);
+    if (p.time) m.push(p.time);
+    return m.join(" · ");
   }
 
-  function makeCell(p, i, groupTitle) {
-    /* 两列错落：单数往里缩，双数往外让（缩多少写在 CSS 里，窄屏自动取消） */
-    var fig = el("figure", "cell reveal " + (i % 2 === 0 ? "a" : "b"));
-    fig.__grp = groupTitle || "";
+  function mCols() {
+    var w = document.documentElement.clientWidth;
+    return w >= 1200 ? 4 : w >= 900 ? 3 : 2;
+  }
 
-    /* 没填 slug 也没 src：一块占位纸，不参与大图浏览 */
-    if (!p.slug && !p.src) {
-      fig.classList.add("is-empty");
-      var ph = el("div", "thumb");
-      ph.appendChild(el("span", "ph", "待填"));
-      fig.appendChild(ph);
-      return fig;
+  /* 把墙上现有的卡片按横向顺序分进 N 根列。每次都重建列容器，卡片节点原样搬过去；
+     顺序记在节点上（__no），搬动不打乱阅读顺序。 */
+  function mDistribute(force) {
+    if (!mbox) return;
+    var cols = mCols();
+    if (!force && cols === mLastCols) return;
+    mLastCols = cols;
+    mbox.style.setProperty("--cols", cols);
+    var items = Array.prototype.slice.call(mbox.querySelectorAll(".m-item"));
+    items.sort(function (a, b) { return (a.__no || 0) - (b.__no || 0); });
+    mbox.textContent = "";
+    var buckets = [];
+    for (var i = 0; i < cols; i++) {
+      var c = el("div", "mcol");
+      mbox.appendChild(c);
+      buckets.push(c);
     }
+    items.forEach(function (it, i) { buckets[i % cols].appendChild(it); });
+  }
 
-    fig.classList.add("has-pic");
+  function makeItem(p, no) {
+    var fig = el("figure", "m-item reveal has-pic");
     fig.__p = p;
+    fig.__no = no;
 
-    var btn = el("button", "thumb");
+    var btn = el("button", "m-media");
     btn.type = "button";
-    btn.setAttribute("aria-label", "看大图：" + ([p.place, p.time].filter(Boolean).join("，") || "照片"));
+    btn.setAttribute("aria-label", "看大图：" + picLabel(p));
 
     var img = document.createElement("img");
     img.loading = "lazy";
     img.decoding = "async";
-    img.alt = [p.place, p.time].filter(Boolean).join("，") || "照片";
-    fillImg(img, p, 800, GRID_SIZES);
+    img.alt = picLabel(p);
+    fillImg(img, p, 800, M_SIZES);
+    /* 原始宽高（云端清单带、上传时也会记下）先写进标记，
+       浏览器据它把比例占好 —— 图片还没到，版式也不跳 */
+    if (p.w && p.h) { img.width = p.w; img.height = p.h; }
+    img.addEventListener("load", function () {
+      /* 本地照片一开始不知道尺寸，图到了补上，之后的重排就不跳了 */
+      if (!img.getAttribute("width") && img.naturalWidth) {
+        img.width = img.naturalWidth;
+        img.height = img.naturalHeight;
+      }
+    });
 
-    /* 第一次失败：本地图可能只做了 800 这一档，退回单档再试一次 */
     var retried = false;
     img.addEventListener("error", function () {
+      /* 第一次失败：本地图可能只做了 800 这一档，退回单档再试一次 */
       if (!retried && !p.src) {
         retried = true;
         img.removeAttribute("srcset");
@@ -109,51 +140,55 @@
         img.src = picUrl(p, 800);
         return;
       }
-      /* 云端照片（带 p.src 的）取不到 —— 十有八九是已经在 Cloudinary 上删掉了。
-         这一格直接从墙上撤掉，别留一块灰扑扑的「待填」在那儿，看着像没删干净。 */
-      if (p.src) {
-        dropCell(fig);
-        confirmGone(p.src, function () { dropMine(p.src); });
-        return;
-      }
-
-      /* 本地图（photos/xxx.jpg 那种）还是失败：换成占位块。
-         这种空位是有意留着的，所以保留，只是不再让它出现在大图里 */
-      fig.classList.remove("has-pic");
-      fig.classList.add("is-empty");
-      delete fig.__p;
-      if (btn.parentNode) btn.parentNode.removeChild(btn);
-      var fallback = el("div", "thumb");
-      fallback.appendChild(el("span", "ph", "待填"));
-      fig.insertBefore(fallback, fig.firstChild);
+      /* 还是取不到：这一格整个从墙上撤掉（瀑布流里不留「待填」块）。
+         云端那张要再确认一次是不是真 404 —— 真删了才把本机记录一起抹掉；
+         万一只是网抖一下，记录留着，下次打开还能再试。 */
+      if (fig.parentNode) fig.parentNode.removeChild(fig);
+      if (p.src) confirmGone(p.src, function () { dropMine(p.src); });
+      mAfterDrop();
     });
 
+    /* 悬停提示圆标：只做透明度 —— 里面有字，位置和大小一律不动 */
+    var hint = el("span", "m-hint", "VIEW PHOTO");
+    hint.setAttribute("aria-hidden", "true");
     btn.appendChild(img);
+    btn.appendChild(hint);
     fig.appendChild(btn);
 
-    /* 缩略图下只留一句心情；时间地点留给大图那两栏 */
-    if (p.note) {
-      var cap = el("figcaption", "cap");
-      cap.appendChild(el("p", "c-note", p.note));
-      fig.appendChild(cap);
-    }
+    /* 图下说明：编号 | 标题 +（地点 · 日期） */
+    var cap = el("figcaption", "m-cap");
+    cap.appendChild(el("span", "m-no", pad2(no)));
+    var body = el("span", "m-cap-body");
+    body.appendChild(el("span", "m-c-title", picTitle(p)));
+    var meta = picMeta(p);
+    if (meta) body.appendChild(el("span", "m-c-meta", meta));
+    cap.appendChild(body);
+    fig.appendChild(cap);
 
     btn.addEventListener("click", function () { openLb(fig); });
     return fig;
   }
 
-  /* ---- 照片没了就别留空壳 ----
-     云端那张取不到时：先把这一格从墙上撤掉，再去确认一次是不是真的 404 ——
-     确实删了就把本机那份记录也一起抹掉（不抹的话，它每回打开都来把灰块重铺一遍）；
-     万一只是网抖一下，记录留着，下次打开还能再试。 */
-  function dropCell(fig) {
-    var grid = fig.parentNode;
-    if (grid && grid.removeChild) grid.removeChild(fig);
-    pruneEmptyGroup(grid);
-    updateHeroYear();
-    buildRail();
+  /* 撤掉格子之后编号会断档，按剩余卡片的显示顺序就地重排（01、02、03……） */
+  function mRenumber() {
+    if (!mbox) return;
+    var items = Array.prototype.slice.call(mbox.querySelectorAll(".m-item"));
+    items.sort(function (a, b) { return (a.__no || 0) - (b.__no || 0); });
+    items.forEach(function (it, i) {
+      it.__no = i + 1;
+      var n = it.querySelector(".m-no");
+      if (n) n.textContent = pad2(i + 1);
+    });
   }
 
+  function mAfterDrop() {
+    mRenumber();
+    if (mEmpty) mEmpty.hidden = !!(mbox && mbox.querySelector(".m-item"));
+    updateHeroYear();
+  }
+
+  /* ---- 照片真没了就别留空壳：再确认一次 404，才把本机那份记录也抹掉 ----
+     （不抹的话，它每回打开都来把这一格重铺一遍） */
   function confirmGone(src, then) {
     try {
       var x = new XMLHttpRequest();
@@ -162,16 +197,6 @@
       x.onloadend = function () { if (x.status === 404) then(); };
       x.send();
     } catch (e) {}
-  }
-
-  /* 一格不剩的分组连标题一起撤掉；整面墙都空了，就把「还没有照片。」放回来 */
-  function pruneEmptyGroup(grid) {
-    if (!grid || grid.querySelector(".cell")) return;
-    var sec = grid.parentNode;
-    if (sec && sec.parentNode) sec.parentNode.removeChild(sec);
-    if (groupsBox && !groupsBox.querySelector(".cell") && !groupsBox.querySelector(".wall-empty")) {
-      groupsBox.appendChild(el("p", "wall-empty", "还没有照片。"));
-    }
   }
 
   /* 从本机记录里抹掉一张（云端已确认删掉的时候用） */
@@ -183,30 +208,43 @@
     } catch (e) {}
   }
 
-  function addGroup(opt) {
-    var sec = el("section", "grp");
-
-    var head = el("header", "grp-head reveal");
-    head.appendChild(el("h3", "grp-title", opt.title));
-    var dl = dateLineOf(opt.title, opt.photos);
-    if (dl) head.appendChild(el("p", "grp-date", "date: " + dl));
-    if (opt.desc) {
-      var intro = el("div", "grp-desc");
-      String(opt.desc).split("\n").forEach(function (line) {
-        intro.appendChild(el("p", null, line));
-      });
-      head.appendChild(intro);
-    }
-    sec.appendChild(head);
-
-    var grid = el("div", "grid");
-    var shown = 0;
-    (opt.photos || []).forEach(function (p) {
-      grid.appendChild(makeCell(p, shown++, opt.title));
-    });
-    sec.appendChild(grid);
-    return sec;
+  /* ---- 铺墙：把合并好的清单整面重铺（幂等 —— 传完照片 / 删了照片都走这里） ---- */
+  function renderWall(pics) {
+    if (!mbox) return;
+    mAllPics = (pics || []).filter(function (p) { return !!(p.src || p.slug); });
+    mbox.textContent = "";
+    mShown = Math.min(M_PAGE, mAllPics.length);
+    for (var i = 0; i < mShown; i++) mbox.appendChild(makeItem(mAllPics[i], i + 1));
+    mDistribute(true);
+    mUpdateButtons();
+    if (mEmpty) mEmpty.hidden = mAllPics.length > 0;
+    updateHeroYear();
+    watchReveal(mbox.querySelectorAll(".reveal"));
+    sweep();
   }
+
+  function mUpdateButtons() {
+    var left = mAllPics.length - mShown;
+    if (mMore) mMore.hidden = left <= 0;
+    if (mAllBtn) mAllBtn.hidden = left <= 0;
+  }
+
+  /* LOAD MORE / VIEW ALL 共用：把还没铺的补出来（VIEW ALL 一次补完） */
+  function mAppendNext(all) {
+    if (!mbox) return;
+    var start = mShown;
+    mShown = all ? mAllPics.length : Math.min(mShown + M_PAGE, mAllPics.length);
+    var fresh = [];
+    for (var i = start; i < mShown; i++) fresh.push(makeItem(mAllPics[i], i + 1));
+    fresh.forEach(function (it) { mbox.appendChild(it); });
+    mDistribute(true);
+    mUpdateButtons();
+    watchReveal(fresh);
+    sweep();
+  }
+
+  if (mMore) mMore.addEventListener("click", function () { mAppendNext(false); });
+  if (mAllBtn) mAllBtn.addEventListener("click", function () { mAppendNext(true); });
 
   /* ================= 3. 全屏大图 ================= */
   var lb = document.getElementById("lb");
@@ -236,7 +274,7 @@
 
   /* 大图的可浏览序列＝当前 DOM 里有真照片的格子，顺序和页面一致 */
   function picCells() {
-    return Array.prototype.slice.call(document.querySelectorAll(".cell.has-pic"));
+    return Array.prototype.slice.call(document.querySelectorAll(".m-item.has-pic"));
   }
 
   function renderLb(i) {
@@ -254,8 +292,8 @@
     fillImg(lbImg, p, 1600, "92vw");
     lbImg.alt = [p.place, p.time].filter(Boolean).join("，") || "照片";
 
-    /* 上一行：这张照片属于哪一组。下面两栏：时间 / 地点。中间：一句心情 */
-    if (lbTitle) lbTitle.textContent = cell.__grp || "";
+    /* 上一行：地点 / 时间。下面两栏：DATE / LOCATION。中间：一句心情 */
+    if (lbTitle) lbTitle.textContent = [p.place, p.time].filter(Boolean).join(" / ") || "照片";
     if (lbNote) {
       if (p.note) { lbNote.textContent = p.note; lbNote.hidden = false; }
       else { lbNote.textContent = ""; lbNote.hidden = true; }
@@ -372,7 +410,7 @@
   var tick = null;
   function onScroll() {
     if (tick) return;
-    tick = setTimeout(function () { tick = null; sweep(); spy(); railSpy(); railOn(); }, 60);
+    tick = setTimeout(function () { tick = null; sweep(); spy(); mDistribute(); }, 60);
   }
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", onScroll);
@@ -395,68 +433,10 @@
     });
   }
 
-  /* ================= 5b. 侧边分类：时间 + 地点 =================
-     每渲染出一组就照着这组重建一次分类条。点一条滚到那一组，
-     滚到哪一组哪一条点亮 —— 和参考站那根竖着排的列表一个意思。 */
-  var rail = document.getElementById("rail");
-  var railItems = [];
-
-  function buildRail() {
-    if (!rail) return;
-    var secs = Array.prototype.slice.call(document.querySelectorAll("#groups .grp"));
-    rail.textContent = "";
-    railItems = [];
-    secs.forEach(function (sec) {
-      /* 只收「真有照片」的分组：photos.js 里还没填的那种占位分组不进条子，
-         要不然会列出一排一模一样的「（分组标题待填）」 */
-      if (!sec.querySelector(".cell.has-pic")) return;
-      var t = sec.querySelector(".grp-title");
-      var label = t ? (t.textContent || "").trim() : "";
-      if (!label) return;
-      var b = el("button", "rail-item", label);
-      b.type = "button";
-      b.setAttribute("aria-label", "跳到这一组：" + label);
-      b.addEventListener("click", function () {
-        sec.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-        railSpy(); railOn();
-        /* 平滑滚动要一会儿才停，落地后再同步一次 ——
-           不等滚动事件（有些环境下它不可靠），点完条子就立刻亮到那一条 */
-        setTimeout(function () { railSpy(); railOn(); }, 420);
-      });
-      rail.appendChild(b);
-      railItems.push({ btn: b, sec: sec });
-    });
-    rail.hidden = railItems.length === 0;
-    railSpy();
-    railOn();
-  }
-
-  /* 点亮：取「已经滚过视口上方 35% 那条线」的最后一组 */
-  function railSpy() {
-    if (!railItems.length) return;
-    var line = window.innerHeight * 0.35;
-    var best = 0;
-    railItems.forEach(function (it, i) {
-      if (it.sec.getBoundingClientRect().top <= line) best = i;
-    });
-    railItems.forEach(function (it, i) {
-      if (i === best) it.btn.setAttribute("aria-current", "true");
-      else it.btn.removeAttribute("aria-current");
-    });
-  }
-
-  /* 只在照片区里露出来：封面和页脚那里不该看到它（窄屏它是横排，不受这条控制） */
-  function railOn() {
-    if (!rail || !railItems.length) return;
-    var wall = document.getElementById("photos");
-    if (!wall) return;
-    var r = wall.getBoundingClientRect();
-    rail.classList.toggle("is-on", r.bottom > 140 && r.top < window.innerHeight - 140);
-  }
 
   /* ================= 6. 封面：右上角那行年份 =================
      首屏不放照片了（原来这里会挑最新一张铺满全屏，已随封面照片一起去掉）。
-     年份是从所有照片的「时间」里数出来的，跟照片墙用的是同一份数据。 */
+     年份是从所有照片的「时间」里数出来的，跟瀑布流用的是同一份数据。 */
   var heroYear = document.getElementById("hero-year");
   var heroSection = document.getElementById("hero");
 
@@ -464,7 +444,7 @@
   function updateHeroYear() {
     if (!heroYear) return;
     var years = [];
-    each(document.querySelectorAll(".cell.has-pic"), function (n) {
+    each(document.querySelectorAll(".m-item.has-pic"), function (n) {
       var t = (n.__p && n.__p.time) || "";
       var m = t.match(/(19|20)\d{2}/);
       if (m && years.indexOf(m[0]) < 0) years.push(m[0]);
@@ -486,33 +466,24 @@
   var heroEnter = document.getElementById("hero-enter");
   if (heroEnter) heroEnter.addEventListener("click", function () { scrollToId("photos"); });
 
-  /* ================= 7. 渲染本地清单 ================= */
-  var groupsBox = document.getElementById("groups");
-  var localGrps = [];
-
-  if (groupsBox) {
-    DATA.forEach(function (g) {
-      var photos = g.photos || [];
-      var real = photos.filter(function (p) { return !!(p.src || p.slug); });
-      var sec = addGroup({
-        title: g.title || "（分组标题待填）",
-        desc: g.desc || "",
-        photos: photos
-      });
-      groupsBox.appendChild(sec);
-      localGrps.push({ sec: sec, empty: real.length === 0 });   /* 全是占位块的分组先记住 */
+  /* ================= 7. 渲染清单 =================
+     photos.js 里手写的本地照片（slug 那种）先收进来，
+     等云端 + 本机记录合并好后一起铺 —— 顺序：新的在前（created 降序），本地手写的殿后。 */
+  var LOCAL_PICS = [];
+  DATA.forEach(function (g) {
+    (g.photos || []).forEach(function (p) {
+      if (p.slug) {
+        LOCAL_PICS.push({
+          slug: p.slug,
+          time: String(p.time || ""),
+          place: String(p.place || ""),
+          note: String(p.note || "")
+        });
+      }
     });
+  });
 
-    if (!DATA.length) {
-      groupsBox.appendChild(el("p", "wall-empty", "还没有照片。"));
-    }
-
-    updateHeroYear();
-    buildRail();
-
-    /* 云端传上来的照片：自己去取清单，自动渲染，不用再改 photos.js */
-    loadCloudPhotos();
-  }
+  if (mbox) loadCloudPhotos();
 
   /* ---- 本机清单：这台电脑上亲手传过的照片 ----
      存在 localStorage 里。照片本体照样在云端，这里只记「地址 + 时间地点心情」，
@@ -530,6 +501,8 @@
       }).map(function (p) {
         return {
           src: p.src,
+          w: Number(p.w) || 0,
+          h: Number(p.h) || 0,
           time: String(p.time || ""),
           place: String(p.place || ""),
           note: String(p.note || ""),
@@ -560,71 +533,6 @@
     return out;
   }
 
-  /* 按「时间 + 地点」分组铺到照片墙最前面。
-     铺过的都带 .grp-saved 标记 —— 传完照片会再来一次，先收拾干净，
-     不然同样的照片会叠一遍。 */
-  function renderSaved(pics) {
-    if (!groupsBox) return;
-    each(groupsBox.querySelectorAll(".grp-saved"), function (n) {
-      if (n.parentNode) n.parentNode.removeChild(n);
-    });
-    if (!pics.length) return;
-
-    var order = [];
-    var buckets = {};
-    var titles = {};
-    pics.forEach(function (p) {
-      var tm = (p.time || "").trim().slice(0, 7);
-      var pl = (p.place || "").trim();
-      var key = (tm || "没写时间") + "\u0000" + pl;
-      if (!buckets[key]) {
-        buckets[key] = [];
-        order.push(key);
-        titles[key] = tm ? (pl ? tm + " " + pl : tm) : "（还没写时间的）";
-      }
-      buckets[key].push(p);
-    });
-
-    var made = [];
-    order.forEach(function (key) {
-      made.push(addGroup({ title: titles[key], desc: "", photos: buckets[key] }));
-    });
-
-    var first = groupsBox.firstChild;
-    made.forEach(function (sec) { sec.classList.add("grp-saved"); groupsBox.insertBefore(sec, first); });
-
-    /* 本地清单（photos.js）里如果写着同一张照片，别显示两遍 ——
-       导出的代码贴回去、本机那份又没清的时候，两边就会同时撞上 */
-    var seenSrc = {};
-    pics.forEach(function (p) { if (p.src) seenSrc[srcKey(p.src)] = 1; });
-    if (Object.keys(seenSrc).length) {
-      each(groupsBox.querySelectorAll(".grp:not(.grp-saved)"), function (sec) {
-        var left = 0;
-        each(sec.querySelectorAll(".cell"), function (c) {
-          if (c.__p && c.__p.src && seenSrc[srcKey(c.__p.src)]) {
-            if (c.parentNode) c.parentNode.removeChild(c);
-            return;
-          }
-          left++;
-        });
-        /* 这一组整组都是重复的那几张 → 连标题一起撤掉 */
-        if (!left && sec.parentNode) sec.parentNode.removeChild(sec);
-      });
-    }
-
-    /* 有真照片了，本地那一堆「待填」占位分组就先收起来，别喧宾夺主 */
-    localGrps.forEach(function (o) {
-      if (o.empty && o.sec && o.sec.parentNode) o.sec.parentNode.removeChild(o.sec);
-    });
-    each(groupsBox.querySelectorAll(".wall-empty"), function (n) {
-      if (n.parentNode) n.parentNode.removeChild(n);
-    });
-
-    made.forEach(function (sec) { watchReveal(sec.querySelectorAll(".reveal")); });
-    buildRail();
-    updateHeroYear();
-    sweep();
-  }
 
   /* ---- 照片清单：去 Cloudinary 要那份「按标签列出全部资源」的清单 ----
      要得到它，后台 Settings → Security → Restricted image types
@@ -654,15 +562,15 @@
   }
 
   function loadCloudPhotos() {
-    if (!groupsBox) return;
+    if (!mbox) return;
     var urls = listUrls();
-    if (!urls.length) { renderSaved(readMine()); return; }
+    if (!urls.length) { renderWall(readMine().concat(LOCAL_PICS)); return; }
     tryList(urls, 0);
   }
 
   /* 一个一个试：哪个先返回 200 就用哪个；全都不行就只剩本机那份 */
   function tryList(urls, i) {
-    if (i >= urls.length) { renderSaved(readMine()); return; }
+    if (i >= urls.length) { renderWall(readMine().concat(LOCAL_PICS)); return; }
 
     var xhr = new XMLHttpRequest();
     xhr.open("GET", urls[i], true);
@@ -676,7 +584,7 @@
           var data = JSON.parse(xhr.responseText);
           cloudPics = ((data && data.resources) || []).map(fromCloud).filter(function (p) { return !!p.src; });
         } catch (e) { cloudPics = []; }
-        renderSaved(mergePics(cloudPics, readMine()));
+        renderWall(mergePics(cloudPics, readMine()).concat(LOCAL_PICS));
         return;
       }
       tryList(urls, i + 1);
@@ -686,9 +594,9 @@
   }
 
 
-  /* 给上传那边的脚本用：传完叫一声，照片墙就地重铺，不用手动刷新 */
+  /* 给上传那边的脚本用：传完叫一声，瀑布流就地重铺，不用手动刷新 */
   window.HJL_REFRESH_PHOTOS = function () {
-    if (groupsBox) loadCloudPhotos();
+    if (mbox) loadCloudPhotos();
   };
 
   function fromCloud(r) {
@@ -697,6 +605,8 @@
     return {
       src: "https://res.cloudinary.com/" + String(UP.cloudName || "").toLowerCase() +
            "/image/upload/" + (r.public_id || "") + "." + (r.format || "jpg"),
+      w: Number(r.width) || 0,
+      h: Number(r.height) || 0,
       time: cx.time || "",
       place: cx.place || "",
       note: cx.note || "",
