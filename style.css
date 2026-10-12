@@ -109,54 +109,81 @@ p { margin: 0; }
 .nav a:hover { color: var(--ink); }
 .nav a[aria-current="page"] { color: var(--ink); }
 
-/* ---------- 封面：一屏空底 ---------- */
+/* ---------- 封面：奶油白纸面 · 杂志式排印 ----------
+   整屏一张纸，不放照片。左边一列字号拉满的衬线大字，底部一行年份 + 入口。
+   动效只有透明度与颜色 —— 带字的元素一律不做位移、不缩放。 */
 .hero {
   position: relative;
   height: 100vh; height: 100svh;
+  min-height: 520px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: calc(var(--bar-h) + clamp(36px, 9vh, 108px)) 24px clamp(36px, 7vh, 72px);
+  background: var(--canvas);
+  border-bottom: 1px solid var(--line-soft);
   overflow: hidden;
-  /* 照片没了，这一条就是封面的底色 —— 想换浅色只改这一个值 */
-  background: #12110f;
 }
+@media (min-width: 900px) { .hero { padding-left: 48px; padding-right: 48px; } }
+@media (min-width: 1200px) { .hero { padding-left: 64px; padding-right: 64px; } }
 .js .hero { cursor: pointer; }
 
-.hero-tag {
-  position: absolute; top: calc(var(--bar-h) + 24px);
+/* 左侧那列字：跟着全站的 --inset 一起往里缩，和下面的板块对齐 */
+/* 上下 auto 让这列字大致落在纸的中段，底部那行年份/入口仍贴着下边 */
+.hero-in { margin: auto 0; padding-left: var(--inset); max-width: 1100px; }
+
+.hero-kicker {
+  margin: 0 0 clamp(18px, 3vh, 32px);
   font-family: var(--mono); font-size: 10px; letter-spacing: .3em;
-  text-transform: uppercase; color: rgba(255, 255, 255, .75);
-  pointer-events: none;
+  text-transform: uppercase; color: var(--ink-3);
 }
-.hero-tag--l { left: 24px; }
-.hero-tag--r { right: 24px; color: rgba(255, 255, 255, .62); }
-@media (min-width: 900px) {
-  .hero-tag--l { left: 48px; }
-  .hero-tag--r { right: 48px; }
+.hero-title {
+  margin: 0;
+  font-family: var(--serif); font-weight: 400;
+  font-size: clamp(56px, 11.5vw, 164px);
+  line-height: .96; letter-spacing: .02em; color: var(--ink);
 }
-@media (min-width: 1200px) {
-  .hero-tag--l { left: 64px; }
-  .hero-tag--r { right: 64px; }
+.hero-sub {
+  margin: clamp(16px, 2.6vh, 28px) 0 0;
+  font-family: var(--serif); font-style: italic;
+  font-size: clamp(15px, 1.8vw, 23px);
+  line-height: 1.5; color: var(--ink-2);
+}
+/* 署名：一条发丝线压在上面，短到只有几个字宽 */
+.hero-by {
+  margin: clamp(24px, 4vh, 42px) 0 0;
+  padding-top: clamp(12px, 1.8vh, 18px);
+  max-width: 300px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--ink-3);
 }
 
-/* 进画廊：只改颜色，不做上下浮动 —— 有字的元素一律不动 */
-.hero-enter {
-  position: absolute; left: 50%; bottom: 40px;
-  margin-left: -80px; width: 160px;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 8px 0;
-  background: none; border: 0; cursor: pointer;
-  color: rgba(255, 255, 255, .72);
-  transition: color .2s ease;
+.hero-foot {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 16px;
 }
-.hero-enter span {
-  font-family: var(--mono); font-size: 9px; letter-spacing: .22em;
-  text-transform: uppercase;
+.hero-year {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .3em;
+  color: var(--ink-3);
+}
+.hero-year[hidden] { display: none; }
+
+/* 进画廊：只改颜色和下划线，不做上下浮动 —— 有字的元素一律不动 */
+.hero-enter {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 0 0 5px;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--ink-2);
+  transition: color .2s ease, border-color .2s ease;
 }
 .hero-enter svg {
   width: 14px; height: 14px;
   fill: none; stroke: currentColor; stroke-width: 1.4;
   stroke-linecap: round; stroke-linejoin: round;
 }
-.hero-enter:hover { color: #ffffff; }
-.hero-enter:focus-visible { outline: 1px solid rgba(255, 255, 255, .8); outline-offset: 4px; }
+.hero-enter:hover { color: var(--ink); border-bottom-color: var(--ink); }
+.hero-enter:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px; }
 
 /* ---------- 精选作品：杂志式瀑布流 ----------
    列容器由 JS 摆（大屏 4 / 平板 3 / 手机 2 根），卡片按横向顺序轮流分进去，
@@ -563,7 +590,7 @@ p { margin: 0; }
   .wrap, .bar-in, .paste { padding-left: 16px; padding-right: 16px; }
   .nav { gap: 16px; }
   .nav a { letter-spacing: .06em; }
-  .hero-tag { letter-spacing: .18em; }
+  .hero-kicker { letter-spacing: .2em; }
   .mgrid { gap: 0 12px; }
   .m-item { margin-bottom: 36px; }
   .m-cap { gap: 0 10px; }
@@ -575,7 +602,7 @@ p { margin: 0; }
 @media print {
   .bar, .lb, .paste, .hero-enter, .m-all, .m-foot, .no-print { display: none; }
   body { background: #fff; font-size: 12px; }
-  .hero { height: auto; background: #fff; }
+  .hero { height: auto; min-height: 0; padding: 28px 0 32px; background: #fff; }
   .works, .about { padding-bottom: 0; }
   .js .reveal { opacity: 1; }
   .mgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

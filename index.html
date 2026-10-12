@@ -27,15 +27,25 @@
 
   <main id="top">
 
-    <!-- ============ 封面：一屏空底 + 两行小字 ============
-         首屏不再放照片。容器就是 .hero，想重做封面只动这里和 style.css 里的 .hero 那一段 -->
+    <!-- ============ 封面：奶油白纸面 · 杂志式排印 ============
+         首屏不放照片。整屏就是一张纸：上方一条眉标，左侧一列衬线大字，
+         底部一行年份 + 一个入口。想改封面只动这里和 style.css 里的 .hero 那一段。
+         年份由 app.js 按照片清单里的年份自动填，没有照片就不显示。 -->
     <section class="hero" id="hero">
-      <div class="hero-tag hero-tag--l"><span>拍照手札 // PHOTO NOTES</span></div>
-      <div class="hero-tag hero-tag--r"><span id="hero-year" hidden></span></div>
-      <button class="hero-enter" id="hero-enter" type="button">
-        <span>ENTER GALLERY / 进入画廊</span>
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
-      </button>
+      <div class="hero-in">
+        <p class="hero-kicker">PHOTO NOTES — 拍照手札</p>
+        <h1 class="hero-title">拍照手札</h1>
+        <p class="hero-sub">Somewhere, between moments.</p>
+        <p class="hero-by">黄锦澜 · 摄影手记</p>
+      </div>
+
+      <div class="hero-foot">
+        <span class="hero-year" id="hero-year" hidden></span>
+        <button class="hero-enter" id="hero-enter" type="button">
+          <span>ENTER GALLERY / 进入画廊</span>
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+        </button>
+      </div>
     </section>
 
     <!-- ============ 精选作品：杂志式瀑布流 ============
