@@ -368,6 +368,8 @@
         /* 云端清单读不出来也别慌：这台电脑上先记一份，照片立刻就能看到 */
         remember({
           src: data.secure_url,
+          w: data.width || 0,
+          h: data.height || 0,
           time: ctxSafe(row.f.time.value),
           place: ctxSafe(row.f.place.value),
           note: ctxSafe(row.f.note.value),
