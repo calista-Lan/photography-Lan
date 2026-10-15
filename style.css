@@ -260,6 +260,23 @@ p { margin: 0; }
   gap: 0 clamp(16px, 3.2vw, 48px);
   padding-top: clamp(36px, 5vw, 60px);
 }
+
+/* ---- 时间分节：选中某个地区后，里面再按拍摄时间切开 ----
+   小标题是一行等宽小字压一条发丝线，跟区头的「Featured Works」一个路子，
+   不加重色块、不加卡片边框 —— 分节靠留白和那条线就够了。 */
+.mg-group { margin: 0; }
+.mg-title {
+  margin: 0;
+  padding: clamp(40px, 5vw, 68px) 0 14px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10px; font-weight: 400;
+  letter-spacing: .24em; text-transform: uppercase; color: var(--ink-3);
+}
+/* 第一节不用那么大的上空 —— 上面紧挨着地区筛选条 */
+.mg-group:first-child .mg-title { padding-top: clamp(22px, 3vw, 34px); }
+/* 分了时间之后，每节内部的瀑布流上边距收一点，不然线下面空得太狠 */
+.mg-title + .mgrid { padding-top: clamp(22px, 3vw, 36px); }
+
 .mcol { min-width: 0; }
 .m-item { margin: 0 0 clamp(36px, 4.5vw, 60px); }
 

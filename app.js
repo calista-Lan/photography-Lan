@@ -147,10 +147,51 @@
     mRegions.appendChild(b);
   }
 
+  /* ---- 拍摄时间：给分好区的照片再切一层 ----
+     ALL 视图不切（整片瀑布流连着看更舒服）；
+     选中某个地区后才在里面按时间分节，新的在前，
+     没写时间的归到「未标时间」，摆在最后好回头补。 */
+  var NO_TIME = "未标时间";
+
+  /* 时间是手打的，同一个月可能写成 2026.9 / 2026.09 / 2026/09 / 2026-09 ——
+     不归拢的话会被当成四个不同的分组。这里统一成 2026.09 再分。
+     抓不到年月的写法（比如「某个周日下午」）原样保留，不硬掰成年份。 */
+  function normTime(s) {
+    var t = String(s || "").trim();
+    if (!t) return "";
+    var m = t.match(/((?:19|20)\d{2})\s*[\/\-年.]\s*(\d{1,2})/);
+    if (m) {
+      var mo = m[2].length < 2 ? "0" + m[2] : m[2];
+      return m[1] + "." + mo;
+    }
+    return t;
+  }
+
+  function timeKey(p) {
+    return normTime(p.time) || NO_TIME;
+  }
+
   /* 当前该铺出来的照片：ALL 就是全部，否则只留选中那个地区的 */
   function wallPics(all) {
     if (mRegion === "ALL") return all.slice();
     return all.filter(function (p) { return regionOf(p) === mRegion; });
+  }
+
+  function timeBlocks(pics) {
+    if (mRegion === "ALL") return [{ label: "", pics: pics }];
+
+    var buckets = {}, order = [];
+    pics.forEach(function (p) {
+      var k = timeKey(p);
+      if (buckets[k] == null) { buckets[k] = []; order.push(k); }
+      buckets[k].push(p);
+    });
+    order.sort(function (a, b) {
+      if (a === NO_TIME) return 1;
+      if (b === NO_TIME) return -1;
+      return b.localeCompare(a);          /* 时间倒序：新的那组在最上面 */
+    });
+    return order.map(function (k) { return { label: k, pics: buckets[k] }; });
   }
 
 
@@ -161,17 +202,22 @@
     var cols = mCols();
     if (!force && cols === mLastCols) return;
     mLastCols = cols;
-    mbox.style.setProperty("--cols", cols);
-    var items = Array.prototype.slice.call(mbox.querySelectorAll(".m-item"));
-    items.sort(function (a, b) { return (a.__no || 0) - (b.__no || 0); });
-    mbox.textContent = "";
-    var buckets = [];
-    for (var i = 0; i < cols; i++) {
-      var c = el("div", "mcol");
-      mbox.appendChild(c);
-      buckets.push(c);
-    }
-    items.forEach(function (it, i) { buckets[i % cols].appendChild(it); });
+
+    /* 每个时间组各自有一张 .mgrid，挨个排；
+       原本是整个一张大网格，现在多了时间分组这一层 */
+    each(mbox.querySelectorAll(".mgrid"), function (grid) {
+      grid.style.setProperty("--cols", cols);
+      var items = Array.prototype.slice.call(grid.querySelectorAll(".m-item"));
+      items.sort(function (a, b) { return (a.__no || 0) - (b.__no || 0); });
+      grid.textContent = "";
+      var buckets = [];
+      for (var i = 0; i < cols; i++) {
+        var c = el("div", "mcol");
+        grid.appendChild(c);
+        buckets.push(c);
+      }
+      items.forEach(function (it, i) { buckets[i % cols].appendChild(it); });
+    });
   }
 
   function makeItem(p, no) {
@@ -277,20 +323,47 @@
     } catch (e) {}
   }
 
-  /* ---- 铺墙：把合并好的清单整面重铺（幂等 —— 传完照片 / 删了照片 / 换地区都走这里）----
-     mAllPics 始终是完整清单；实际铺出来的是 wallPics() 那一档。 */
+  /* ---- 铺墙：整面重铺（幂等 —— 传完照片 / 删了照片 / 换地区都走这里）----
+     mAllPics 始终是完整清单；实际铺出来的是筛选后的前 mShown 张，
+     按「地区 → 时间」两层分节摆好。 */
   function renderWall(pics) {
     if (!mbox) return;
     mAllPics = (pics || []).filter(function (p) { return !!(p.src || p.slug); });
     buildRegions();
-    var show = wallPics(mAllPics);
-    mbox.textContent = "";
-    mShown = Math.min(M_PAGE, show.length);
-    for (var i = 0; i < mShown; i++) mbox.appendChild(makeItem(show[i], i + 1));
-    mDistribute(true);
-    mUpdateButtons();
+    mShown = Math.min(M_PAGE, wallPics(mAllPics).length);
+    paint();
     if (mEmpty) mEmpty.hidden = mAllPics.length > 0;
     updateHeroYear();
+  }
+
+  /* 按当前 mShown 把整面墙重画一遍。
+     每次都重建（不走增量）是有意的：分页、切地区、撤格三种情况
+     共用同一段渲染代码，省得增量分支写错。照片数量不大，代价可以接受。 */
+  function paint() {
+    if (!mbox) return;
+    var blocks = timeBlocks(wallPics(mAllPics));
+    mbox.textContent = "";
+
+    var no = 0;
+    blocks.forEach(function (b) {
+      if (no >= mShown && !b.pics.length) return;
+      var pics = b.pics.slice(0, Math.max(0, mShown - no));
+      if (!pics.length) return;              /* 这一节还没轮到，先不画标题 */
+
+      var sec = el("section", "mg-group");
+      if (b.label) sec.appendChild(el("h3", "mg-title", b.label));
+      var grid = el("div", "mgrid");
+      sec.appendChild(grid);
+      mbox.appendChild(sec);
+
+      pics.forEach(function (p) {
+        no++;
+        grid.appendChild(makeItem(p, no));
+      });
+    });
+
+    mDistribute(true);
+    mUpdateButtons();
     watchReveal(mbox.querySelectorAll(".reveal"));
     sweep();
   }
@@ -301,19 +374,12 @@
     if (mAllBtn) mAllBtn.hidden = left <= 0;
   }
 
-  /* LOAD MORE / VIEW ALL 共用：把还没铺的补出来（VIEW ALL 一次补完） */
+  /* LOAD MORE / VIEW ALL 共用：多铺几张（VIEW ALL 一次铺完），然后整面重画 */
   function mAppendNext(all) {
     if (!mbox) return;
-    var show = wallPics(mAllPics);
-    var start = mShown;
-    mShown = all ? show.length : Math.min(mShown + M_PAGE, show.length);
-    var fresh = [];
-    for (var i = start; i < mShown; i++) fresh.push(makeItem(show[i], i + 1));
-    fresh.forEach(function (it) { mbox.appendChild(it); });
-    mDistribute(true);
-    mUpdateButtons();
-    watchReveal(fresh);
-    sweep();
+    var total = wallPics(mAllPics).length;
+    mShown = all ? total : Math.min(mShown + M_PAGE, total);
+    paint();
   }
 
   if (mMore) mMore.addEventListener("click", function () { mAppendNext(false); });

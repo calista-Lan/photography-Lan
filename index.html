@@ -67,7 +67,9 @@
         <!-- 地区筛选：ALL 是全看，后面每个按钮 = 一个拍摄地区（按张数从多到少） -->
         <nav aria-label="按地区筛选" class="m-regions no-print" id="m-regions"></nav>
 
-        <div class="mgrid" id="m-grid"></div>
+        <!-- 照片由脚本铺进来：选中某个地区后，里面会再按拍摄时间分成几节，
+             每节一个时间小标题 + 一节自己的瀑布流。没选地区时就是连着的一整片。 -->
+        <div id="m-grid"></div>
         <p class="wall-empty" hidden id="m-empty">还没有照片。</p>
 
         <div class="m-foot no-print">
