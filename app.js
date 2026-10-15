@@ -63,9 +63,11 @@
   var mEmpty = document.getElementById("m-empty");
   var mMore = document.getElementById("m-more");
   var mAllBtn = document.getElementById("m-all");
+  var mRegions = document.getElementById("m-regions");
   var mAllPics = [];                     /* 合并后的全部照片，顺序即编号顺序 */
   var mShown = 0;                        /* 已经铺出来的张数 */
   var mLastCols = 0;
+  var mRegion = "ALL";                   /* 当前选中的地区；ALL = 全看 */
 
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
 
@@ -80,10 +82,77 @@
     return m.join(" · ");
   }
 
+  /* ---- 地区：直接取自「地点」那一栏（珠海 / 杭州 / 海边……）----
+     拍摄地点天生就是地区，不用再维护第二份分类。
+     没填地点的归到「未标地点」，好让它们能被单独筛出来补。 */
+  var NO_REGION = "未标地点";
+  function regionOf(p) {
+    var s = String(p.place || "").trim();
+    return s || NO_REGION;
+  }
+
   function mCols() {
     var w = document.documentElement.clientWidth;
     return w >= 1200 ? 4 : w >= 900 ? 3 : 2;
   }
+
+  /* ---- 地区条：从合并好的清单里把地区数出来（按张数从多到少）----
+     「ALL」永远在第一个。只有一个地区（或一张照片刚都没有）时不显示这一排。 */
+  function buildRegions() {
+    if (!mRegions) return;
+    var count = {}, order = [];
+    mAllPics.forEach(function (p) {
+      var r = regionOf(p);
+      if (count[r] == null) { count[r] = 0; order.push(r); }
+      count[r]++;
+    });
+    order.sort(function (a, b) {
+      /* 「未标地点」永远排在最后，其余按张数多的在前 */
+      if (a === NO_REGION) return 1;
+      if (b === NO_REGION) return -1;
+      return count[b] - count[a] || a.localeCompare(b);
+    });
+
+    mRegions.textContent = "";
+    if (order.length < 2) {
+      /* 只有一个地区，筛选没意义，整条收起来 */
+      mRegions.hidden = true;
+      if (order.length && mRegion !== "ALL" && mRegion !== order[0]) mRegion = "ALL";
+      return;
+    }
+    mRegions.hidden = false;
+
+    /* 选中的地区要是已经不存在了（照片被删/改了地点），退回 ALL */
+    if (mRegion !== "ALL" && order.indexOf(mRegion) < 0) mRegion = "ALL";
+
+    addRegionBtn("ALL", "ALL / 全部", mAllPics.length);
+    order.forEach(function (r) { addRegionBtn(r, r, count[r]); });
+  }
+
+  function addRegionBtn(value, label, n) {
+    var b = el("button", "m-region");
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(value === mRegion));
+    b.appendChild(document.createTextNode(label));
+    b.appendChild(el("span", "m-region-n", String(n)));
+    b.addEventListener("click", function () {
+      if (mRegion === value) return;
+      mRegion = value;
+      var btns = mRegions.querySelectorAll(".m-region");
+      Array.prototype.forEach.call(btns, function (x) {
+        x.setAttribute("aria-pressed", String(x === b));
+      });
+      renderWall(mAllPics.slice());   /* 用同一份清单重铺，只看被选中的那一档 */
+    });
+    mRegions.appendChild(b);
+  }
+
+  /* 当前该铺出来的照片：ALL 就是全部，否则只留选中那个地区的 */
+  function wallPics(all) {
+    if (mRegion === "ALL") return all.slice();
+    return all.filter(function (p) { return regionOf(p) === mRegion; });
+  }
+
 
   /* 把墙上现有的卡片按横向顺序分进 N 根列。每次都重建列容器，卡片节点原样搬过去；
      顺序记在节点上（__no），搬动不打乱阅读顺序。 */
@@ -208,13 +277,16 @@
     } catch (e) {}
   }
 
-  /* ---- 铺墙：把合并好的清单整面重铺（幂等 —— 传完照片 / 删了照片都走这里） ---- */
+  /* ---- 铺墙：把合并好的清单整面重铺（幂等 —— 传完照片 / 删了照片 / 换地区都走这里）----
+     mAllPics 始终是完整清单；实际铺出来的是 wallPics() 那一档。 */
   function renderWall(pics) {
     if (!mbox) return;
     mAllPics = (pics || []).filter(function (p) { return !!(p.src || p.slug); });
+    buildRegions();
+    var show = wallPics(mAllPics);
     mbox.textContent = "";
-    mShown = Math.min(M_PAGE, mAllPics.length);
-    for (var i = 0; i < mShown; i++) mbox.appendChild(makeItem(mAllPics[i], i + 1));
+    mShown = Math.min(M_PAGE, show.length);
+    for (var i = 0; i < mShown; i++) mbox.appendChild(makeItem(show[i], i + 1));
     mDistribute(true);
     mUpdateButtons();
     if (mEmpty) mEmpty.hidden = mAllPics.length > 0;
@@ -224,7 +296,7 @@
   }
 
   function mUpdateButtons() {
-    var left = mAllPics.length - mShown;
+    var left = wallPics(mAllPics).length - mShown;
     if (mMore) mMore.hidden = left <= 0;
     if (mAllBtn) mAllBtn.hidden = left <= 0;
   }
@@ -232,10 +304,11 @@
   /* LOAD MORE / VIEW ALL 共用：把还没铺的补出来（VIEW ALL 一次补完） */
   function mAppendNext(all) {
     if (!mbox) return;
+    var show = wallPics(mAllPics);
     var start = mShown;
-    mShown = all ? mAllPics.length : Math.min(mShown + M_PAGE, mAllPics.length);
+    mShown = all ? show.length : Math.min(mShown + M_PAGE, show.length);
     var fresh = [];
-    for (var i = start; i < mShown; i++) fresh.push(makeItem(mAllPics[i], i + 1));
+    for (var i = start; i < mShown; i++) fresh.push(makeItem(show[i], i + 1));
     fresh.forEach(function (it) { mbox.appendChild(it); });
     mDistribute(true);
     mUpdateButtons();
@@ -533,6 +606,31 @@
     return out;
   }
 
+  /* ---- 同一张照片重复传了两遍 ----
+     重复的判据不是地址（两次上传的地址必然不同），而是「时间 + 地点 + 心情」
+     三项完全一样、图幅也一样。碰上了就只留最早传的那一张，
+     不然瀑布流里就会出现两张一模一样的图（这正是之前那个问题）。
+
+     注意：这里只是**不重复显示**，云端那两份都还在 ——
+     要真删掉多余的那些，跑 photo-admin.py 选 2。
+     这样分两步是有意的：万一判断错了，你随时能把隐藏的那张找回来。 */
+  function dedupeByContent(list) {
+    var seen = {}, out = [];
+    list.forEach(function (p) {
+      var k = [
+        String(p.time || "").trim(),
+        String(p.place || "").trim(),
+        String(p.note || "").trim(),
+        String(p.w || ""),
+        String(p.h || "")
+      ].join("\u0000");
+      if (seen[k]) return;          /* 前面已经有同一张了，这张不铺 */
+      seen[k] = 1;
+      out.push(p);
+    });
+    return out;
+  }
+
 
   /* ---- 照片清单：去 Cloudinary 要那份「按标签列出全部资源」的清单 ----
      要得到它，后台 Settings → Security → Restricted image types
@@ -564,13 +662,13 @@
   function loadCloudPhotos() {
     if (!mbox) return;
     var urls = listUrls();
-    if (!urls.length) { renderWall(readMine().concat(LOCAL_PICS)); return; }
+    if (!urls.length) { renderWall(dedupeByContent(readMine()).concat(LOCAL_PICS)); return; }
     tryList(urls, 0);
   }
 
   /* 一个一个试：哪个先返回 200 就用哪个；全都不行就只剩本机那份 */
   function tryList(urls, i) {
-    if (i >= urls.length) { renderWall(readMine().concat(LOCAL_PICS)); return; }
+    if (i >= urls.length) { renderWall(dedupeByContent(readMine()).concat(LOCAL_PICS)); return; }
 
     var xhr = new XMLHttpRequest();
     xhr.open("GET", urls[i], true);
@@ -584,7 +682,7 @@
           var data = JSON.parse(xhr.responseText);
           cloudPics = ((data && data.resources) || []).map(fromCloud).filter(function (p) { return !!p.src; });
         } catch (e) { cloudPics = []; }
-        renderWall(mergePics(cloudPics, readMine()).concat(LOCAL_PICS));
+        renderWall(dedupeByContent(mergePics(cloudPics, readMine())).concat(LOCAL_PICS));
         return;
       }
       tryList(urls, i + 1);

@@ -51,7 +51,9 @@
     <!-- ============ 精选作品：杂志式瀑布流 ============
          照片由 photos.js 清单 + 本机记录 + 云端清单自动合并铺出，
          大屏四列 / 平板三列 / 手机两列，高度跟原始比例走，不裁切。
-         首铺 12 张，LOAD MORE / VIEW ALL 负责剩下的。 -->
+         首铺 12 张，LOAD MORE / VIEW ALL 负责剩下的。
+         顶部那排「地区」是从每张照片的地点自动数出来的 ——
+         没填地点的照片归到「未标地点」，选它就能筛出来补。 -->
     <section class="works" id="photos">
       <div class="wrap">
         <header class="m-head reveal">
@@ -61,6 +63,9 @@
           </div>
           <button class="m-all" hidden id="m-all" type="button">VIEW ALL / 查看全部</button>
         </header>
+
+        <!-- 地区筛选：ALL 是全看，后面每个按钮 = 一个拍摄地区（按张数从多到少） -->
+        <nav aria-label="按地区筛选" class="m-regions no-print" id="m-regions"></nav>
 
         <div class="mgrid" id="m-grid"></div>
         <p class="wall-empty" hidden id="m-empty">还没有照片。</p>
@@ -128,6 +133,15 @@
           </p>
           <ul class="paste-list" id="paste-list"></ul>
           <p class="paste-done" id="paste-done" role="status"></p>
+
+          <!-- 已上传的照片：改时间 / 地点 / 一句心情。改的是云端那条记录，
+               改完页面重新读一遍清单就更新了（这类动作需要 API Key，
+               没配的话这里会说明，走 photo-admin.py 也能改）。 -->
+          <div class="paste-edit" hidden id="paste-edit">
+            <p class="paste-edit-head">已经传上去的照片 —— 点一行改时间 / 地点 / 心情</p>
+            <ul class="paste-edit-list" id="paste-edit-list"></ul>
+            <p class="paste-msg" id="paste-edit-msg" role="status"></p>
+          </div>
 
           <!-- 本机记录：这台电脑传过的照片在这儿留了一份底，也能导出成 photos.js -->
           <div class="paste-mine">

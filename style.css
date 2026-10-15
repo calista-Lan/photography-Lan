@@ -205,6 +205,37 @@ p { margin: 0; }
   font-family: var(--mono); font-size: 10px; letter-spacing: .22em;
   text-transform: uppercase; color: var(--ink-3);
 }
+
+/* ---------- 地区筛选条 ----------
+   每个按钮就是一个拍摄地区，文字大小一律不动（只改颜色和那根下划线），
+   选中态靠一根实线和变深的字色，不用背景块、不用圆角胶囊。 */
+.m-regions {
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: 4px 26px;
+  padding: 18px 0 0;
+}
+.m-regions[hidden] { display: none; }
+.m-region {
+  position: relative;
+  padding: 6px 0;
+  background: none; border: 0; border-bottom: 1px solid transparent;
+  cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--ink-3);
+  transition: color .18s ease, border-color .18s ease;
+}
+.m-region:hover { color: var(--ink); }
+.m-region:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px; }
+/* 选中：字色压深 + 一条实线。注意这条线是画在 ::after 上的静态装饰，
+   不涉及文字本身的位移或缩放 —— 全站对「带字的元素」的规矩照旧。 */
+.m-region[aria-pressed="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.m-region-n {
+  margin-left: 6px;
+  font-size: 9px; letter-spacing: .08em; color: var(--ink-3);
+}
 .m-title {
   margin: 0;
   font-family: var(--serif); font-weight: 400;
@@ -419,10 +450,53 @@ p { margin: 0; }
 .paste-err { display: block; margin-top: 8px; font-size: 12px; color: var(--warn); }
 .paste-done { margin: 18px 0 0; font-size: 13px; color: var(--cold); }
 
+/* 已上传的照片：一行一张，点开就地改三项。改的是云端记录，
+   页面重读清单后生效（这类动作要签名，见文件头说明）。 */
+.paste-edit { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
+.paste-edit[hidden] { display: none; }
+.paste-edit-head { margin: 0 0 4px; font-size: 13px; color: var(--ink-2); }
+.paste-edit-list { list-style: none; margin: 0; padding: 0; }
+.paste-edit-list li { padding: 14px 0; border-top: 1px solid var(--line-soft); }
+.paste-edit-list li:first-child { border-top: 0; }
+.pe-row {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0; width: 100%;
+  padding: 0; background: none; border: 0; cursor: pointer;
+  text-align: left;
+}
+.pe-row:hover .pe-title { color: var(--ink); }
+.pe-row:focus-visible { outline: 2px solid var(--cold); outline-offset: 2px; }
+.pe-thumb {
+  flex: none; width: 44px; height: 44px;
+  border-radius: var(--radius); overflow: hidden;
+  background: var(--fill);
+}
+.pe-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.pe-text { min-width: 0; }
+.pe-title {
+  display: block;
+  font-size: 13px; line-height: 1.5; color: var(--ink-2);
+  transition: color .18s ease;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pe-meta {
+  display: block; margin-top: 2px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--ink-3);
+}
+.pe-form { padding: 14px 0 4px 56px; }
+.pe-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.pe-actions button {
+  padding: 8px 14px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  font-family: var(--font); font-size: 12px; color: var(--ink-2); cursor: pointer;
+  transition: color .18s ease, border-color .18s ease;
+}
+.pe-actions button:hover { color: var(--ink); border-color: rgba(0, 0, 0, .34); }
+.pe-actions button:focus-visible { outline: 2px solid var(--cold); outline-offset: 2px; }
+
 /* 本机记录：存在这台浏览器里的那一份清单。传完照片就看得见，
    不用等云端、也不用开后台开关 —— 代价是只有这台电脑看得到 */
-.paste-mine { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
-.paste-mine-row {
+.paste-mine { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line-soft); }.paste-mine-row {
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0;
   font-size: 13px; color: var(--ink-2);
 }

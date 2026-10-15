@@ -77,6 +77,10 @@
   var outBox = document.getElementById("paste-out");
   var outMsg = document.getElementById("paste-out-msg");
 
+  var editBox = document.getElementById("paste-edit");
+  var editList = document.getElementById("paste-edit-list");
+  var editMsg = document.getElementById("paste-edit-msg");
+
   function ready() { return !!CONFIG.cloudName && !!CONFIG.uploadPreset; }
 
   /* ---------- 本机清单：这台电脑传过的照片留一份底 ---------- */
@@ -197,7 +201,198 @@
 
   showMineCount();
 
-  function say(node, text) { if (node) node.textContent = text || ""; }
+  /* ============ 编辑已上传的照片 ============
+     改的是云端那条照片的 context（time / place / note）。
+     Cloudinary 的「改元数据」接口要签名，签名要 API Secret ——
+     Secret 绝不能写进公开网页。所以这里只在用户**自己粘了**
+     adminKey（API Key，权限受限、可以随时在后台吊销）时启用：
+       · 没粘：这一区照样能改，只是改的是本机那份记录（自己电脑立刻生效），
+               云端那条要跑 photo-admin.py 选 3。
+       · 粘了：请求带上 api_key + 预设，云端那条一起改掉。
+     说白了 —— 这是给站主自己用的便利入口，不是给访客的。 */
+
+  var ADMIN_KEY_LS = "hjl-photo-adminkey-v1";
+
+  function adminKey() {
+    try { return String(localStorage.getItem(ADMIN_KEY_LS) || "").trim(); } catch (e) { return ""; }
+  }
+
+  /* 云端那张照片的 public_id：从 secure_url 里切出来 */
+  function publicIdOf(src) {
+    var m = String(src || "").match(/\/image\/upload\/(?:v\d+\/)?(.+?)(?:\.[a-z0-9]+)?$/i);
+    return m ? m[1] : "";
+  }
+
+  /* 编辑列表的数据源：本机记录优先；没有就退回瀑布流里已铺出来的那些
+     （云端清单由 app.js 读，读到的照片挂在格子节点上） */
+  function editSource() {
+    var mine = readMine();
+    if (mine.length) return mine;
+    var out = [];
+    var cells = document.querySelectorAll(".m-item.has-pic");
+    Array.prototype.forEach.call(cells, function (c) {
+      var p = c.__p;
+      if (p && p.src) out.push({
+        src: p.src, time: p.time, place: p.place, note: p.note, created: p.created
+      });
+    });
+    return out;
+  }
+
+  function rebuildEditList() {
+    if (!editBox || !editList) return;
+    var arr = editSource();
+    if (!arr.length) { editBox.hidden = true; editList.innerHTML = ""; return; }
+    editBox.hidden = false;
+    editList.innerHTML = "";
+
+    arr.forEach(function (p) {
+      var li = document.createElement("li");
+
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "pe-row";
+      row.setAttribute("aria-expanded", "false");
+
+      var thumb = document.createElement("span");
+      thumb.className = "pe-thumb";
+      var im = document.createElement("img");
+      im.alt = "";
+      im.loading = "lazy";
+      im.src = String(p.src).replace("/image/upload/", "/image/upload/c_scale,w_120,q_auto/");
+      thumb.appendChild(im);
+
+      var text = document.createElement("span");
+      text.className = "pe-text";
+      var ti = document.createElement("span");
+      ti.className = "pe-title";
+      ti.textContent = (p.note || p.place || "无题");
+      var me = document.createElement("span");
+      me.className = "pe-meta";
+      me.textContent = [p.place, p.time].filter(Boolean).join(" · ") || "还没填时间地点";
+      text.appendChild(ti);
+      text.appendChild(me);
+
+      row.appendChild(thumb);
+      row.appendChild(text);
+      li.appendChild(row);
+      editList.appendChild(li);
+
+      /* 点开就地变成三项表单 —— 不新开页、不弹窗 */
+      row.addEventListener("click", function () {
+        var open = li.querySelector(".pe-form");
+        if (open) { open.remove(); row.setAttribute("aria-expanded", "false"); return; }
+        row.setAttribute("aria-expanded", "true");
+        li.appendChild(buildEditForm(p, li, row));
+      });
+    });
+  }
+
+  function buildEditForm(p, li, row) {
+    var form = document.createElement("div");
+    form.className = "pe-form";
+    var meta = document.createElement("p");
+    meta.className = "paste-meta";
+    var fields = {};
+    [["time", "时间", "2026.09"], ["place", "地区 / 地点", "珠海"],
+     ["note", "一句心情", "风大得睁不开眼"]].forEach(function (f) {
+      var lab = document.createElement("label");
+      lab.appendChild(document.createTextNode(f[1]));
+      var inp = document.createElement("input");
+      inp.type = "text";
+      inp.value = p[f[0]] || "";
+      inp.placeholder = f[2];
+      inp.autocomplete = "off";
+      lab.appendChild(inp);
+      meta.appendChild(lab);
+      fields[f[0]] = inp;
+    });
+    form.appendChild(meta);
+
+    var acts = document.createElement("p");
+    acts.className = "pe-actions";
+    var save = document.createElement("button");
+    save.type = "button";
+    save.textContent = "保存";
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "取消";
+    acts.appendChild(save);
+    acts.appendChild(cancel);
+    form.appendChild(acts);
+
+    cancel.addEventListener("click", function () {
+      form.remove();
+      row.setAttribute("aria-expanded", "false");
+    });
+
+    save.addEventListener("click", function () {
+      var next = {
+        src: p.src,
+        w: p.w, h: p.h,
+        time: ctxSafe(fields.time.value),
+        place: ctxSafe(fields.place.value),
+        note: ctxSafe(fields.note.value),
+        created: p.created || new Date().toISOString()
+      };
+      save.disabled = true;
+      say(editMsg, "正在保存……");
+      pushEdit(p.src, next, function (ok, detail) {
+        save.disabled = false;
+        if (!ok) { say(editMsg, "没改成：" + detail); return; }
+        /* 本机那份先就地更新，站点立刻能看到新信息 */
+        remember(next);
+        showMineCount();
+        say(editMsg, "保存好了。" + detail);
+        rebuildEditList();
+        if (window.HJL_REFRESH_PHOTOS) window.HJL_REFRESH_PHOTOS();
+      });
+    });
+
+    return form;
+  }
+
+  /* 把新信息推到云端。带 api_key 时云端那条一起改；没带就只改本机记录 */
+  function pushEdit(src, next, done) {
+    var pid = publicIdOf(src);
+    var ak = adminKey();
+    if (!pid) { done(false, "这个地址里认不出照片编号。"); return; }
+
+    if (!ak) {
+      done(true, "（只改了本机记录，云端那条跑 photo-admin.py 选 3 改。）");
+      return;
+    }
+
+    var fd = new FormData();
+    fd.append("file", onePixel());
+    fd.append("upload_preset", CONFIG.uploadPreset);
+    fd.append("public_id", pid);
+    fd.append("context", "time=" + next.time + "|place=" + next.place + "|note=" + next.note);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "https://api.cloudinary.com/v1_1/" + CONFIG.cloudName + "/image/upload");
+    xhr.addEventListener("load", function () {
+      if (xhr.status >= 200 && xhr.status < 300) { done(true, "（云端也更新了。）"); return; }
+      var d = null;
+      try { d = JSON.parse(xhr.responseText); } catch (e) {}
+      var why = (d && d.error && d.error.message) || ("HTTP " + xhr.status);
+      done(true, "（本机改了，云端那条没成：" + why + "）");
+    });
+    xhr.addEventListener("error", function () {
+      done(true, "（本机改了，云端那条没连上，稍后再试。）");
+    });
+    xhr.send(fd);
+  }
+
+  /* Cloudinary 的 multipart 里必须有 file 字段；配合 public_id 时
+     只重写元数据、图片不动。这里给一个占位文件就够。 */
+  function onePixel() {
+    return new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "meta.png", { type: "image/png" });
+  }
+
+  rebuildEditList();
+  window.HJL_REBUILD_EDIT = rebuildEditList;
+
 
   if (!ready()) {
     say(msg, "还没配置好：打开 upload.js，把 cloudName 和 uploadPreset 两个值填上。");
