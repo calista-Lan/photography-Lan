@@ -6,7 +6,7 @@
   <title>拍照手札 · 黄锦澜</title>
   <meta content="黄锦澜的拍照手札：一组随手拍下的照片，每张只记时间、地点和当时的一句心情。" name="description"/>
   <meta content="黄锦澜" name="author"/>
-  <meta content="#F5F2EB" name="theme-color"/>
+  <meta content="#ffffff" name="theme-color"/>
   <!-- 有脚本时才启用「滚动淡入」；没有脚本，内容照样全部可见 -->
   <script>document.documentElement.classList.add("js");</script>
   <link href="./style.css" rel="stylesheet"/>
@@ -64,16 +64,22 @@
           <button class="m-all" hidden id="m-all" type="button">VIEW ALL / 查看全部</button>
         </header>
 
-        <!-- 地区筛选：ALL 是全看，后面每个按钮 = 一个拍摄地区（按张数从多到少） -->
-        <nav aria-label="按地区筛选" class="m-regions no-print" id="m-regions"></nav>
+        <!-- 地区筛选竖排一列（ALL 是全看，后面每行 = 一个拍摄地区）：
+             宽屏时这一列贴在左边当侧栏跟着滚动，窄屏时退回画廊上方。
+             照片铺在右边 / 下面那一格里，站在点 see 哪一批就只看哪一批。 -->
+        <div class="m-body">
+          <nav aria-label="按地区筛选" class="m-regions no-print" id="m-regions"></nav>
 
-        <!-- 照片由脚本铺进来：选中某个地区后，里面会再按拍摄时间分成几节，
-             每节一个时间小标题 + 一节自己的瀑布流。没选地区时就是连着的一整片。 -->
-        <div id="m-grid"></div>
-        <p class="wall-empty" hidden id="m-empty">还没有照片。</p>
+          <div class="m-main">
+            <!-- 照片由脚本铺进来：选中某个地区后，里面会再按拍摄时间分成几节，
+                 每节一个时间小标题 + 一节自己的瀑布流。没选地区时就是连着的一整片。 -->
+            <div id="m-grid"></div>
+            <p class="wall-empty" hidden id="m-empty">还没有照片。</p>
 
-        <div class="m-foot no-print">
-          <button class="m-more" hidden id="m-more" type="button">LOAD MORE / 加载更多</button>
+            <div class="m-foot no-print">
+              <button class="m-more" hidden id="m-more" type="button">LOAD MORE / 加载更多</button>
+            </div>
+          </div>
         </div>
 
         <noscript>

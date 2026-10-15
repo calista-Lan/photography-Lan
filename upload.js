@@ -81,6 +81,13 @@
   var editList = document.getElementById("paste-edit-list");
   var editMsg = document.getElementById("paste-edit-msg");
 
+  /* 删除那一支把进度写回这一区自己的一行小字上。
+     不写回上面那个 paste-msg：那一行常常在屏幕外，写完看不见，
+     会以为按钮点了没反应。 */
+  function sayEdit(t) {
+    if (editMsg) editMsg.textContent = t || "";
+  }
+
   function ready() { return !!CONFIG.cloudName && !!CONFIG.uploadPreset; }
 
   /* ---------- 本机清单：这台电脑传过的照片留一份底 ---------- */
@@ -317,13 +324,50 @@
     var cancel = document.createElement("button");
     cancel.type = "button";
     cancel.textContent = "取消";
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "pe-del";
+    del.textContent = "删除这张";
     acts.appendChild(save);
     acts.appendChild(cancel);
+    acts.appendChild(del);
     form.appendChild(acts);
 
     cancel.addEventListener("click", function () {
       form.remove();
       row.setAttribute("aria-expanded", "false");
+    });
+
+    /* 删除：两段式确认。云端能不能真删掉取决于有没有 API Secret，
+       但本机这一份立刻就不铺了 —— 点了必须看得见变化 */
+    del.addEventListener("click", function () {
+      if (del.dataset.armed !== "1") {
+        del.dataset.armed = "1";
+        del.classList.add("is-armed");
+        del.textContent = "再点一次确认";
+        setTimeout(function () {
+          del.dataset.armed = "";
+          del.classList.remove("is-armed");
+          del.textContent = "删除这张";
+        }, 4000);
+        return;
+      }
+      del.disabled = true;
+      sayEdit("正在删除……");
+      pushDelete(p.src, function (ok, detail) {
+        del.disabled = false;
+        del.dataset.armed = "";
+        del.classList.remove("is-armed");
+        del.textContent = "删除这张";
+        if (!ok) { sayEdit("没删成：" + detail); return; }
+        /* 本机记录抹掉 + 告诉瀑布流这一张别再铺（清单有缓存，不记这一笔会复活） */
+        saveMine(readMine().filter(function (x) { return x.src !== p.src; }));
+        showMineCount();
+        if (window.HJL_HIDE_SRC) window.HJL_HIDE_SRC(p.src);
+        if (window.HJL_REFRESH_PHOTOS) window.HJL_REFRESH_PHOTOS();
+        sayEdit(detail);
+        rebuildEditList();
+      });
     });
 
     save.addEventListener("click", function () {
@@ -352,8 +396,7 @@
     return form;
   }
 
-  /* 把新信息推到云端。带 api_key 时云端那条一起改；没带就只改本机记录 */
-  function pushEdit(src, next, done) {
+  /* 把新信息推到云端。带 api_key 时云端那条一起改；没带就只改本机记录 */  function pushEdit(src, next, done) {
     var pid = publicIdOf(src);
     var ak = adminKey();
     if (!pid) { done(false, "这个地址里认不出照片编号。"); return; }
@@ -390,8 +433,135 @@
     return new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "meta.png", { type: "image/png" });
   }
 
+  /* 本机记录：这台电脑传过的照片留一份底，也能导出成 photos.js */
+  var ADMIN_SECRET_LS = "hjl-photo-adminsecret-v1";
+
+  /* ============ 删掉一张 ============
+     Cloudinary 的销毁接口必须签名，签名要 API Secret。
+     Secret 写进公开网页等于把账号交出去，所以这里只在**你自己**
+     于本机存过 Secret（localStorage，只在这台电脑上）时才真删云端那条。
+     没存的话：本机记录抹掉、墙上也不再显示 —— 但云端那张还在，
+     要永久删掉跑 photo-admin.py 选 5。
+
+     瀑布流那边的「删除」也走这里（HJL_DELETE_PHOTO），
+     免得两处各写一份签名逻辑、以后改漏一处。 */
+
+  function adminSecret() {
+    try { return String(localStorage.getItem(ADMIN_SECRET_LS) || "").trim(); } catch (e) { return ""; }
+  }
+
+  function pushDelete(src, done) {
+    var pid = publicIdOf(src);
+    if (!pid) { done(false, "这个地址里认不出照片编号。"); return; }
+
+    var secret = adminSecret();
+    if (!secret) {
+      done(true, "本机已经不再显示了。云端那张没删 —— 跑 photo-admin.py 选 5，" +
+                 "或先在本机存好 API Key 和 Secret。");
+      return;
+    }
+
+    var ts = String(Math.floor(Date.now() / 1000));
+    var base = secret + adminKey();
+    /* 签名 = 把「要签的字段按字典序拼好 + 密钥」做一次 sha1。
+       密钥是 Secret 在前、Key 在后（Cloudinary 的规定）。 */
+    sha1Hex("public_id=" + pid + "&timestamp=" + ts + "&invalidate=true" + base)
+      .then(function (sig) {
+        var body = "public_id=" + encodeURIComponent(pid) +
+                   "&timestamp=" + encodeURIComponent(ts) +
+                   "&invalidate=true" +
+                   "&api_key=" + encodeURIComponent(adminKey()) +
+                   "&signature=" + encodeURIComponent(sig);
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "https://api.cloudinary.com/v1_1/" + CONFIG.cloudName + "/resources/image/upload/delete_by_token");
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xhr.addEventListener("load", function () {
+          var d = null;
+          try { d = JSON.parse(xhr.responseText); } catch (e) {}
+          if (xhr.status >= 200 && xhr.status < 300 && d && d.result === "ok") {
+            done(true, "删掉了，云端也清干净了。");
+          } else {
+            var why = (d && d.error && d.error.message) || ("HTTP " + xhr.status);
+            done(true, "本机已经不显示了，云端那条没删成（" + why + "）。可以走 photo-admin.py 选 5。");
+          }
+        });
+        xhr.addEventListener("error", function () {
+          done(true, "本机已经不显示了，云端那条没连上。可以走 photo-admin.py 选 5。");
+        });
+        xhr.send(body);
+      });
+  }
+
+  /* SHA-1：优先用浏览器的 WebCrypto（只有 https / localhost 才给用），
+     本地双击打开时退回自己实现的那一份 */
+  function sha1Hex(str) {
+    if (window.crypto && crypto.subtle && crypto.subtle.digest && window.TextEncoder) {
+      var buf = new TextEncoder().encode(str);
+      return crypto.subtle.digest("SHA-1", buf).then(function (h) {
+        return Array.prototype.map.call(new Uint8Array(h), function (b) {
+          return ("0" + b.toString(16)).slice(-2);
+        }).join("");
+      });
+    }
+    return Promise.resolve(plainSha1(str));
+  }
+
+  /* 没有 WebCrypto 时的兜底实现（本地 file:// 预览会走到这里） */
+  function plainSha1(s) {
+    function rl(n, b) { return (n << b) | (n >>> (32 - b)); }
+    function add(a, b) { return (a + b) | 0; }
+    var msg = [], utf = unescape(encodeURIComponent(s)), i;
+    for (i = 0; i < utf.length; i++) msg.push(utf.charCodeAt(i));
+    var l = msg.length;
+    msg.push(0x80);
+    while (msg.length % 64 !== 56) msg.push(0);
+    var bits = l * 8;
+    for (i = 7; i >= 0; i--) msg.push((bits / Math.pow(2, i * 8)) & 0xff);
+
+    var h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE,
+        h3 = 0x10325476, h4 = 0xC3D2E1F0;
+    var w = new Array(80);
+    for (var j = 0; j < msg.length; j += 64) {
+      for (i = 0; i < 16; i++) {
+        w[i] = (msg[j + i * 4] << 24) | (msg[j + i * 4 + 1] << 16) |
+               (msg[j + i * 4 + 2] << 8) | msg[j + i * 4 + 3];
+      }
+      for (i = 16; i < 80; i++) w[i] = rl(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+      var a = h0, b = h1, c = h2, d = h3, e = h4;
+      for (i = 0; i < 80; i++) {
+        var f, k;
+        if (i < 20) { f = (b & c) | (~b & d); k = 0x5A827999; }
+        else if (i < 40) { f = b ^ c ^ d; k = 0x6ED9EBA1; }
+        else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC; }
+        else { f = b ^ c ^ d; k = 0xCA62C1D6; }
+        var t = add(add(add(rl(a, 5), f), add(add(e, k), w[i])), 0);
+        e = d; d = c; c = rl(b, 30); b = a; a = t;
+      }
+      h0 = add(h0, a); h1 = add(h1, b); h2 = add(h2, c);
+      h3 = add(h3, d); h4 = add(h4, e);
+    }
+    return [h0, h1, h2, h3, h4].map(function (n) {
+      return ("00000000" + (n >>> 0).toString(16)).slice(-8);
+    }).join("");
+  }
+
   rebuildEditList();
   window.HJL_REBUILD_EDIT = rebuildEditList;
+  /* 瀑布流那边的删除走这条回话：提示落在这一区自己那行小字上 */
+  window.HJL_DEL_MSG = sayEdit;
+
+  /* 瀑布流那边的「删除」按钮转到这里来执行：本机的记录由它抹掉，
+     云端的删除由这里统一带签名（那边没有 Secret）。
+     抹本机记录这件事两边都做一遍是安全的 —— 内部都是按地址过滤后重写。 */
+  window.HJL_DELETE_PHOTO = function (src, done) {
+    pushDelete(src, function (ok, detail) {
+      if (ok) {
+        saveMine(readMine().filter(function (x) { return x.src !== src; }));
+        showMineCount();
+      }
+      done(ok, detail);
+    });
+  };
 
 
   if (!ready()) {

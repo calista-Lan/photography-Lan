@@ -22,6 +22,12 @@
      写在下面会让**第一次**渲染读到一个还没赋值的名字 —— 上次就栽在这儿。 */
   var MINE_KEY = window.HJL_MINE_KEY || "hjl-photo-mine-v1";
 
+  /* 本机记着「已经被我删掉、别再铺出来」的地址。
+     放 sessionStorage：这一趟浏览有效就够了，下次打开时云端清单也该刷过来了。
+     真去云端删要的 API Key / Secret 都归 upload.js 管（只可能从本机读到，
+     绝不会跟着页面发出去）—— 这边只管「先别铺」。 */
+  var HIDDEN_KEY = "hjl-photo-hidden-v1";
+
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -64,10 +70,12 @@
   var mMore = document.getElementById("m-more");
   var mAllBtn = document.getElementById("m-all");
   var mRegions = document.getElementById("m-regions");
+  var mBody = document.querySelector(".m-body");
   var mAllPics = [];                     /* 合并后的全部照片，顺序即编号顺序 */
   var mShown = 0;                        /* 已经铺出来的张数 */
   var mLastCols = 0;
   var mRegion = "ALL";                   /* 当前选中的地区；ALL = 全看 */
+  var mHidden = {};                      /* 本地记着「别再铺」的地址，见 hideSrc */
 
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
 
@@ -96,8 +104,8 @@
     return w >= 1200 ? 4 : w >= 900 ? 3 : 2;
   }
 
-  /* ---- 地区条：从合并好的清单里把地区数出来（按张数从多到少）----
-     「ALL」永远在第一个。只有一个地区（或一张照片刚都没有）时不显示这一排。 */
+  /* ---- 地区栏：从合并好的清单里把地区数出来（按张数从多到少）----
+     「ALL」永远在第一个。只有一个地区（或一张照片都没有）时整列收起来。 */
   function buildRegions() {
     if (!mRegions) return;
     var count = {}, order = [];
@@ -112,6 +120,11 @@
       if (b === NO_REGION) return -1;
       return count[b] - count[a] || a.localeCompare(b);
     });
+
+    /* 竖排那一列收起来的时候，画廊得一路铺到左边 ——
+       不然宽屏上左边会空出 168px 的一条沟。
+       这个类由这里统一管，免得 CSS 和 JS 各判一遍条件、以后改漏一处。 */
+    if (mBody) mBody.classList.toggle("is-one-col", order.length < 2);
 
     mRegions.textContent = "";
     if (order.length < 2) {
@@ -133,7 +146,9 @@
     var b = el("button", "m-region");
     b.type = "button";
     b.setAttribute("aria-pressed", String(value === mRegion));
-    b.appendChild(document.createTextNode(label));
+    /* 地名单独包一层：竖排之后这一行是「地名居左、张数居右」的两栏，
+       裸的文本节点不好控制 */
+    b.appendChild(el("span", "m-region-label", label));
     b.appendChild(el("span", "m-region-n", String(n)));
     b.addEventListener("click", function () {
       if (mRegion === value) return;
@@ -238,6 +253,14 @@
        浏览器据它把比例占好 —— 图片还没到，版式也不跳 */
     if (p.w && p.h) { img.width = p.w; img.height = p.h; }
     img.addEventListener("load", function () {
+      /* 兜底：清单里没记尺寸的图（老的本机记录就是），等它真加载出来
+         才发现是个 1x1 的测试图 —— 这种铺开就是一块灰底占着格子，撤掉。
+         上面 dropJunk 拦的是「清单里写了尺寸」的那些，这道拦漏网的。 */
+      if (img.naturalWidth && img.naturalWidth <= 2 && img.naturalHeight <= 2) {
+        if (fig.parentNode) fig.parentNode.removeChild(fig);
+        mAfterDrop();
+        return;
+      }
       /* 本地照片一开始不知道尺寸，图到了补上，之后的重排就不跳了 */
       if (!img.getAttribute("width") && img.naturalWidth) {
         img.width = img.naturalWidth;
@@ -279,6 +302,53 @@
     if (meta) body.appendChild(el("span", "m-c-meta", meta));
     cap.appendChild(body);
     fig.appendChild(cap);
+
+    /* 删掉这一张：挂一行最淡的小按钮。
+       云端那份删不删得掉取决于有没有 API Key（见 upload.js 的说明），
+       但不管删没删云端的，本地这一份立刻就不铺了 —— 点了就要看得见变化，
+       不然会以为没生效、反复点。 */
+    var ops = el("span", "m-ops");
+    var del = el("button", "m-del", "删除");
+    del.type = "button";
+    del.setAttribute("aria-label", "删掉这张照片：" + picLabel(p));
+    del.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      if (del.dataset.armed !== "1") {
+        /* 两段式：第一下只是预备，手滑点错还有得退 */
+        del.dataset.armed = "1";
+        del.classList.add("is-armed");
+        del.textContent = "再点一次确认";
+        setTimeout(function () {
+          del.dataset.armed = "";
+          del.classList.remove("is-armed");
+          del.textContent = "删除";
+        }, 4000);
+        return;
+      }
+      del.disabled = true;
+      del.textContent = "删除中……";
+      removePhoto(p, function (ok, msg) {
+        if (!ok) {
+          del.disabled = false;
+          del.dataset.armed = "";
+          del.classList.remove("is-armed");
+          del.textContent = "删除";
+          if (window.HJL_DEL_MSG) window.HJL_DEL_MSG(msg);
+          return;
+        }
+        /* 不管云端删没删成，本机这一趟都不再铺它了 —— 清单有缓存，
+           不记这一笔的话它会当场"复活"回来。
+           注意先 hideSrc 再 paint：paint 是从 mAllPics 重画的，
+           而 mAllPics 是上一次的清单，里面还有这张。 */
+        hideSrc(p.src);
+        mAllPics = applyHidden(mAllPics);
+        mShown = Math.min(mShown, wallPics(mAllPics).length);
+        paint();
+        if (window.HJL_DEL_MSG) window.HJL_DEL_MSG(msg);
+      });
+    });
+    ops.appendChild(del);
+    body.appendChild(ops);
 
     btn.addEventListener("click", function () { openLb(fig); });
     return fig;
@@ -323,12 +393,86 @@
     } catch (e) {}
   }
 
+  /* ================= 删一张照片 =================
+     两件事分开做，是有意的：
+
+       · hideSrc()  —— 只标在本地（sessionStorage），当场就不铺了。
+         清单（Cloudinary 的 list 接口）是有缓存的，云端删掉之后这里还可能
+         连着好几分钟读到旧清单；不多记这一笔的话，被删的那张会"复活"回来。
+
+       · removePhoto() —— 真去云端删。删 Cloudinary 的照片要签名，
+         签名要 API Secret，而 Secret 不能写进公开网页。
+         真正的删法是 upload.js 那边（你在「贴一张新照片」区存过 Secret 才走它），
+         这里只是把请求转过去；那边没有就退成「只在本机不显示」。
+
+     说白了：没有凭证时，「删除」= 只在你这台电脑上不再显示；
+     真正的删除要么在 upload.js 里存好 Key + Secret，要么跑 photo-admin.py 选 5。 */
+
+  function hideSrc(src) {
+    if (!src) return;
+    mHidden[srcKey(src)] = 1;
+    try {
+      var raw = sessionStorage.getItem(HIDDEN_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      if (Object.prototype.toString.call(arr) !== "[object Array]") arr = [];
+      if (arr.indexOf(srcKey(src)) < 0) arr.push(srcKey(src));
+      sessionStorage.setItem(HIDDEN_KEY, JSON.stringify(arr));
+    } catch (e) {}
+  }
+
+  function readHidden() {
+    var out = {};
+    try {
+      var raw = sessionStorage.getItem(HIDDEN_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      if (Object.prototype.toString.call(arr) === "[object Array]") {
+        arr.forEach(function (k) { out[k] = 1; });
+      }
+    } catch (e) {}
+    return out;
+  }
+
+  mHidden = readHidden();
+
+  /* 真去云端删。真正的删除只在 upload.js 里实现了一次（那边才有
+     API Key / Secret 的读取和签名），这里转过去；那边不在就退成
+     「只在本机不显示」。 */
+  function removePhoto(p, done) {
+    var src = p && p.src;
+
+    /* photos.js 里手写的（只有 slug，没有云端地址）：把那一行删掉才算数 */
+    if (!src) {
+      done(true, "这张的地址不在云端（清单里手写的），本地先不显示；要永久删掉得改 photos.js。");
+      return;
+    }
+
+    if (typeof window.HJL_DELETE_PHOTO === "function") {
+      window.HJL_DELETE_PHOTO(src, done);
+      return;
+    }
+    done(true, "这次只是本机不再显示。要真删掉云端那张，跑 photo-admin.py 选 5。");
+  }
+
+  /* ---- 没有画面的图不占格子 ----
+     1x1 那种测试图（早先试传留下的）它的元数据是齐的，看着像一张正常照片，
+     铺到墙上却只是一块灰底 —— 图片拉满整格、里面什么都没有。
+     按尺寸把它挡在墙外面：宽高都 ≤2px 的，一律不铺。
+     注意不知道尺寸的要放过（photos.js 手写的本地照片就没有 w/h）。 */
+  function dropJunk(list) {
+    return list.filter(function (p) {
+      var w = Number(p.w) || 0, h = Number(p.h) || 0;
+      if (!w || !h) return true;
+      return !(w <= 2 && h <= 2);
+    });
+  }
+
   /* ---- 铺墙：整面重铺（幂等 —— 传完照片 / 删了照片 / 换地区都走这里）----
      mAllPics 始终是完整清单；实际铺出来的是筛选后的前 mShown 张，
-     按「地区 → 时间」两层分节摆好。 */
+     按「地区 → 时间」两层分节摆好。
+     三条清单（云端 / 本机 / 手写）都在这里汇合，所以「去空图」只在这一处做。 */
   function renderWall(pics) {
     if (!mbox) return;
-    mAllPics = (pics || []).filter(function (p) { return !!(p.src || p.slug); });
+    mAllPics = dropJunk((pics || []).filter(function (p) { return !!(p.src || p.slug); }));
     buildRegions();
     mShown = Math.min(M_PAGE, wallPics(mAllPics).length);
     paint();
@@ -683,6 +827,8 @@
   function dedupeByContent(list) {
     var seen = {}, out = [];
     list.forEach(function (p) {
+      /* 自己删过的，先拦下来 —— 云端的清单有缓存，这一笔能挡住"复活" */
+      if (p.src && mHidden[srcKey(p.src)]) return;
       var k = [
         String(p.time || "").trim(),
         String(p.place || "").trim(),
@@ -697,6 +843,20 @@
     return out;
   }
 
+
+  /* ---- 自己删过的那些，从清单里摘掉 ----
+     写在 dedupeByContent 后面是有原因的：那个函数里也过了一道 mHidden，
+     但它只在**合并那一刻**过。而「贴一张新照片」那一区删掉一张之后
+     会直接叫 HJL_REFRESH_PHOTOS 重读清单，那时候 mHidden 已经填好了；
+     万一是被别的地方调起来的（比如本机记录先铺出来），
+     这一层再兜一次，保证隐藏的那张不会换个入口又冒出来。 */
+  function applyHidden(list) {
+    var keys = Object.keys(mHidden);
+    if (!keys.length) return list;
+    return list.filter(function (p) {
+      return !(p.src && mHidden[srcKey(p.src)]);
+    });
+  }
 
   /* ---- 照片清单：去 Cloudinary 要那份「按标签列出全部资源」的清单 ----
      要得到它，后台 Settings → Security → Restricted image types
@@ -728,13 +888,13 @@
   function loadCloudPhotos() {
     if (!mbox) return;
     var urls = listUrls();
-    if (!urls.length) { renderWall(dedupeByContent(readMine()).concat(LOCAL_PICS)); return; }
+    if (!urls.length) { renderWall(applyHidden(dedupeByContent(readMine())).concat(LOCAL_PICS)); return; }
     tryList(urls, 0);
   }
 
   /* 一个一个试：哪个先返回 200 就用哪个；全都不行就只剩本机那份 */
   function tryList(urls, i) {
-    if (i >= urls.length) { renderWall(dedupeByContent(readMine()).concat(LOCAL_PICS)); return; }
+    if (i >= urls.length) { renderWall(applyHidden(dedupeByContent(readMine())).concat(LOCAL_PICS)); return; }
 
     var xhr = new XMLHttpRequest();
     xhr.open("GET", urls[i], true);
@@ -748,7 +908,7 @@
           var data = JSON.parse(xhr.responseText);
           cloudPics = ((data && data.resources) || []).map(fromCloud).filter(function (p) { return !!p.src; });
         } catch (e) { cloudPics = []; }
-        renderWall(dedupeByContent(mergePics(cloudPics, readMine())).concat(LOCAL_PICS));
+        renderWall(applyHidden(dedupeByContent(mergePics(cloudPics, readMine()))).concat(LOCAL_PICS));
         return;
       }
       tryList(urls, i + 1);
@@ -758,8 +918,17 @@
   }
 
 
-  /* 给上传那边的脚本用：传完叫一声，瀑布流就地重铺，不用手动刷新 */
+  /* 给上传那边的脚本用：传完叫一声，瀑布流就地重铺，不用手动刷新。
+     那边删掉/改完一张也走这里（删掉的那张会先在本地记一笔，见 hideSrc）；
+     顺带把「已经传上去的照片」那份列表也重建一遍，两处保持同步。 */
   window.HJL_REFRESH_PHOTOS = function () {
+    if (mbox) loadCloudPhotos();
+    if (window.HJL_REBUILD_EDIT) window.HJL_REBUILD_EDIT();
+  };
+
+  /* 给上传那边用：本地记一笔「别再铺这张」，并且从墙上撤掉 */
+  window.HJL_HIDE_SRC = function (src) {
+    hideSrc(src);
     if (mbox) loadCloudPhotos();
   };
 

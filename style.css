@@ -15,9 +15,9 @@
 
 /* ---------- 纸与墨 ---------- */
 :root {
-  --canvas: #F5F2EB;          /* 页面底：奶油白 */
-  --card: #ffffff;            /* 卡片 / 顶栏 / 大图底 */
-  --fill: #f0efec;            /* 照片未到时的占位底 */
+  --canvas: #ffffff;              /* 页面底：纯白 */
+  --card: #ffffff;                /* 卡片 / 顶栏 / 大图底 —— 同底色，靠那条发丝线划界 */
+  --fill: #f4f4f4;                /* 照片未到时的占位底（比白稍暗，才能看出是个坑） */
   --ink: #121212;             /* 主文字：近黑 */
   --ink-2: #6f6f6f;           /* 次级文字 */
   --ink-3: #a1a1a0;           /* 说明、meta */
@@ -51,7 +51,7 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font);
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1.75;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -71,19 +71,19 @@ p { margin: 0; }
 .sec-head { padding-left: var(--inset); margin-bottom: 40px; }
 .sec-head h2 {
   margin: 0;
-  font-size: 20px; font-weight: 500; letter-spacing: .02em;
+  font-size: 24px; font-weight: 500; letter-spacing: .02em;
 }
-@media (min-width: 900px) { .sec-head h2 { font-size: 24px; } }
+@media (min-width: 900px) { .sec-head h2 { font-size: 28px; } }
 .sec-meta {
   margin: 6px 0 0;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .06em;
   color: var(--ink-3);
 }
 
 /* ---------- 顶栏 ---------- */
 .bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 40;
-  background: rgba(245, 242, 235, .94);
+  background: rgba(255, 255, 255, .94);
   border-bottom: 1px solid var(--line-soft);
 }
 .bar-in {
@@ -95,17 +95,17 @@ p { margin: 0; }
 @media (min-width: 1200px) { .bar-in { padding: 0 64px; } }
 
 .brand {
-  font-size: 14px; font-weight: 500; letter-spacing: .15em;
+  font-size: 16px; font-weight: 500; letter-spacing: .12em;
   color: var(--ink);
 }
-@media (min-width: 900px) { .brand { font-size: 15px; } }
+@media (min-width: 900px) { .brand { font-size: 17px; } }
 .nav { display: flex; align-items: center; gap: 24px; }
 @media (min-width: 900px) { .nav { gap: 44px; } }
 .nav a {
-  font-size: 11px; letter-spacing: .12em; color: var(--ink-3);
+  font-size: 13px; letter-spacing: .12em; color: var(--ink-3);
   transition: color .18s ease;
 }
-@media (min-width: 900px) { .nav a { font-size: 12px; } }
+@media (min-width: 900px) { .nav a { font-size: 14px; } }
 .nav a:hover { color: var(--ink); }
 .nav a[aria-current="page"] { color: var(--ink); }
 
@@ -132,7 +132,7 @@ p { margin: 0; }
 
 .hero-kicker {
   margin: 0 0 clamp(18px, 3vh, 32px);
-  font-family: var(--mono); font-size: 10px; letter-spacing: .3em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .22em;
   text-transform: uppercase; color: var(--ink-3);
 }
 .hero-title {
@@ -144,7 +144,8 @@ p { margin: 0; }
 .hero-sub {
   margin: clamp(16px, 2.6vh, 28px) 0 0;
   font-family: var(--serif); font-style: italic;
-  font-size: clamp(15px, 1.8vw, 23px);
+  /* 正文基线提到 17px，这句副标题的下限也得跟着抬，不然比正文还小 */
+  font-size: clamp(17px, 2vw, 26px);
   line-height: 1.5; color: var(--ink-2);
 }
 /* 署名：一条发丝线压在上面，短到只有几个字宽 */
@@ -153,7 +154,7 @@ p { margin: 0; }
   padding-top: clamp(12px, 1.8vh, 18px);
   max-width: 300px;
   border-top: 1px solid var(--line);
-  font-family: var(--mono); font-size: 10px; letter-spacing: .2em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .15em;
   text-transform: uppercase; color: var(--ink-3);
 }
 
@@ -162,7 +163,7 @@ p { margin: 0; }
   gap: 16px;
 }
 .hero-year {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .3em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .22em;
   color: var(--ink-3);
 }
 .hero-year[hidden] { display: none; }
@@ -173,7 +174,7 @@ p { margin: 0; }
   padding: 0 0 5px;
   background: none; border: 0; border-bottom: 1px solid var(--line);
   cursor: pointer;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .22em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .16em;
   text-transform: uppercase; color: var(--ink-2);
   transition: color .2s ease, border-color .2s ease;
 }
@@ -191,8 +192,34 @@ p { margin: 0; }
    悬停放大 1.03 只作用在图片本体（纯图形，可以做 transform）；
    VIEW PHOTO 圆标和说明文字只做透明度 —— 带字的元素一律不动位置。 */
 .works { padding: 0 0 clamp(72px, 10vw, 120px); }
-.wall-empty { margin: 0; font-size: 14px; color: var(--ink-3); }
+.wall-empty { margin: 0; font-size: 16px; color: var(--ink-3); }
 .wall-empty[hidden] { display: none; }
+
+/* 地区栏 + 画廊：窄屏上下叠着放，宽屏分成左栏（地区）和右栏（照片）两列。
+   两列都 minmax(0, 1fr) 是必须的 —— 照片那栏如果不给 0 下限会被内容撑宽，
+   整页就横向溢出了。 */
+.m-body { display: block; }
+@media (min-width: 900px) {
+  .m-body {
+    display: grid;
+    /* 侧栏宽 168 → 196：地区栏的字放大了一档，「ALL / 全部 2」要放得下 */
+    grid-template-columns: 196px minmax(0, 1fr);
+    gap: 0 clamp(24px, 3.5vw, 56px);
+    align-items: start;
+  }
+  /* 侧栏跟着滚：翻照片的时候不用回头去切地区。
+     top 要跳过顶栏，不然会被那条 bar 压住 */
+  .m-regions {
+    position: sticky;
+    top: calc(var(--bar-h) + 24px);
+    padding-top: clamp(36px, 5vw, 60px);
+  }
+  /* 照片那一栏：min-width 0 是防溢出的另一半规矩 —— 见上面的说明 */
+  .m-main { min-width: 0; }
+  /* 只有一个地区时（那一列被 JS 收起来了），画廊重新铺满整行，
+     不然左边会空出一条跟侧栏一样宽的沟 */
+  .m-body.is-one-col { grid-template-columns: minmax(0, 1fr); }
+}
 
 .m-head {
   display: flex; align-items: flex-end; justify-content: space-between;
@@ -202,39 +229,46 @@ p { margin: 0; }
 }
 .m-kicker {
   margin: 0 0 12px;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .22em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .16em;
   text-transform: uppercase; color: var(--ink-3);
 }
 
-/* ---------- 地区筛选条 ----------
-   每个按钮就是一个拍摄地区，文字大小一律不动（只改颜色和那根下划线），
-   选中态靠一根实线和变深的字色，不用背景块、不用圆角胶囊。 */
+/* ---------- 地区筛选：竖排一列 ----------
+   每行一个地区，宽屏时整列贴在左边当侧栏（跟着滚动），窄屏时退回画廊上方。
+   选中态是左侧一条竖线 + 字色压深 —— 不选背景块、不用圆角胶囊。
+   那条 2px 的 border-left 每一行都有（透明），所以选中不会把文字挤动：
+   带字的元素一律不做位移。 */
 .m-regions {
-  display: flex; flex-wrap: wrap; align-items: baseline;
-  gap: 4px 26px;
+  display: flex; flex-direction: column; align-items: stretch;
   padding: 18px 0 0;
 }
 .m-regions[hidden] { display: none; }
 .m-region {
-  position: relative;
-  padding: 6px 0;
-  background: none; border: 0; border-bottom: 1px solid transparent;
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 12px;
+  margin: 0;
+  background: none; border: 0;
+  border-left: 2px solid transparent;
   cursor: pointer;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .18em;
+  text-align: left;
+  /* 竖排之后这一列离照片有点远，字放大一档才站得住；
+     字距也从 .18em 收到 .1em —— 中文字距太开反而显碎 */
+  font-family: var(--mono); font-size: 15px; letter-spacing: .1em;
   text-transform: uppercase; color: var(--ink-3);
   transition: color .18s ease, border-color .18s ease;
 }
 .m-region:hover { color: var(--ink); }
 .m-region:focus-visible { outline: 2px solid var(--cold); outline-offset: 3px; }
-/* 选中：字色压深 + 一条实线。注意这条线是画在 ::after 上的静态装饰，
-   不涉及文字本身的位移或缩放 —— 全站对「带字的元素」的规矩照旧。 */
 .m-region[aria-pressed="true"] {
   color: var(--ink);
-  border-bottom-color: var(--ink);
+  border-left-color: var(--ink);
 }
+.m-region-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .m-region-n {
-  margin-left: 6px;
-  font-size: 9px; letter-spacing: .08em; color: var(--ink-3);
+  flex: none;
+  font-size: 13px; letter-spacing: .04em; color: var(--ink-3);
 }
 .m-title {
   margin: 0;
@@ -246,7 +280,7 @@ p { margin: 0; }
   padding: 10px 2px;
   background: none; border: 0; border-bottom: 1px solid var(--line);
   cursor: pointer;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .2em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .15em;
   text-transform: uppercase; color: var(--ink-2);
   transition: color .18s ease, border-color .18s ease;
 }
@@ -269,8 +303,8 @@ p { margin: 0; }
   margin: 0;
   padding: clamp(40px, 5vw, 68px) 0 14px;
   border-bottom: 1px solid var(--line);
-  font-family: var(--mono); font-size: 10px; font-weight: 400;
-  letter-spacing: .24em; text-transform: uppercase; color: var(--ink-3);
+  font-family: var(--mono); font-size: 12px; font-weight: 400;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3);
 }
 /* 第一节不用那么大的上空 —— 上面紧挨着地区筛选条 */
 .mg-group:first-child .mg-title { padding-top: clamp(22px, 3vw, 34px); }
@@ -301,12 +335,13 @@ p { margin: 0; }
 /* VIEW PHOTO 圆标：居中用负 margin（有字的元素不做 transform，静态的也不做） */
 .m-hint {
   position: absolute; left: 50%; top: 50%;
-  width: 92px; height: 92px; margin: -46px 0 0 -46px;
+  /* 字从 8px 提到 10px，圆也跟着放大 —— 不然 "VIEW PHOTO" 会挤成三行 */
+  width: 106px; height: 106px; margin: -53px 0 0 -53px;
   display: flex; align-items: center; justify-content: center;
   padding: 0 12px; text-align: center;
   border-radius: 50%;
-  background: rgba(245, 242, 235, .92);
-  font-family: var(--mono); font-size: 8px; letter-spacing: .16em;
+  background: rgba(255, 255, 255, .92);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
   line-height: 1.5; text-transform: uppercase; color: var(--ink);
   opacity: 0; transition: opacity .3s ease;
   pointer-events: none;
@@ -324,19 +359,41 @@ p { margin: 0; }
   gap: 0 14px; padding-top: 12px;
 }
 .m-no {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .1em;
   line-height: 1.7; color: var(--ink-3);
 }
 .m-cap-body { display: block; min-width: 0; }
 .m-c-title {
   display: block;
-  font-size: 13px; line-height: 1.6; letter-spacing: .02em; color: var(--ink);
+  font-size: 15px; line-height: 1.6; letter-spacing: .02em; color: var(--ink);
 }
 .m-c-meta {
   display: block; margin-top: 2px;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .1em;
   color: var(--ink-3);
 }
+
+/* 「删掉」小按钮：挂在说明行末尾，颜色最淡，不抢照片的注意。
+   带字的元素只改颜色和透明度 —— 不做位移、不缩放。 */
+.m-ops {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 8px;
+}
+.m-del {
+  padding: 0;
+  background: none; border: 0;
+  cursor: pointer;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3);
+  opacity: 0; transition: opacity .2s ease, color .2s ease;
+}
+.m-item:hover .m-del,
+.m-del:focus-visible { opacity: 1; }
+.m-del:hover { color: var(--warn); }
+.m-del:focus-visible { outline: 2px solid var(--warn); outline-offset: 3px; }
+.m-del.is-armed { opacity: 1; color: var(--warn); }
+/* 触摸屏没有悬停：直接显出来，不然永远点不到 */
+@media (hover: none) { .m-del { opacity: 1; } }
 /* 说明文字轻微淡入：默认稍淡，悬停转实（只在有鼠标的设备上） */
 @media (hover: hover) {
   .m-cap { opacity: .7; transition: opacity .3s ease; }
@@ -348,7 +405,7 @@ p { margin: 0; }
   padding: 15px 38px;
   background: none; border: 1px solid var(--line); border-radius: var(--radius);
   cursor: pointer;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .24em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .18em;
   text-transform: uppercase; color: var(--ink-2);
   transition: color .18s ease, border-color .18s ease;
 }
@@ -369,13 +426,13 @@ p { margin: 0; }
 
 .fact h3 {
   margin: 0;
-  font-family: var(--mono); font-size: 10px; font-weight: 400;
-  letter-spacing: .16em; text-transform: uppercase;
+  font-family: var(--mono); font-size: 12px; font-weight: 400;
+  letter-spacing: .12em; text-transform: uppercase;
   color: var(--ink-3);
 }
 .fact p {
   margin: 10px 0 0; max-width: 34ch;
-  font-size: 13px; font-weight: 300; line-height: 1.8; color: var(--ink-2);
+  font-size: 15px; font-weight: 300; line-height: 1.8; color: var(--ink-2);
 }
 
 /* ---------- 贴照片（默认折叠，手里有口令才展开） ---------- */
@@ -388,7 +445,7 @@ p { margin: 0; }
   padding: 18px 0 18px 24px;
   cursor: pointer;
   list-style: none;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .16em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--ink-3);
   border-top: 1px solid var(--line-soft);
@@ -404,10 +461,10 @@ p { margin: 0; }
 .paste > summary:hover { color: var(--ink); }
 
 .paste-body { padding: 2px 0 40px; }
-.paste-tip { margin: 0 0 20px; font-size: 13px; font-weight: 300; color: var(--ink-2); }
+.paste-tip { margin: 0 0 20px; font-size: 15px; font-weight: 300; color: var(--ink-2); }
 
 .paste-gate { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.paste-gate label { font-size: 13px; color: var(--ink-2); }
+.paste-gate label { font-size: 15px; color: var(--ink-2); }
 .paste-gate input {
   width: 200px; padding: 9px 12px; margin: 0;
   font-family: var(--font); font-size: 16px; color: var(--ink);
@@ -418,7 +475,7 @@ p { margin: 0; }
 .paste-file {
   display: inline-block;
   padding: 9px 16px;
-  font-size: 14px; line-height: 1.5;
+  font-size: 16px; line-height: 1.5;
   color: var(--ink);
   background: var(--card);
   border: 1px solid var(--line);
@@ -439,16 +496,16 @@ p { margin: 0; }
   opacity: 0; cursor: pointer;
 }
 
-.paste-msg { width: 100%; margin: 12px 0 0; font-size: 13px; color: var(--ink-2); }
+.paste-msg { width: 100%; margin: 12px 0 0; font-size: 15px; color: var(--ink-2); }
 .paste-list { list-style: none; margin: 24px 0 0; padding: 0; }
 .paste-list li { padding: 16px 0; border-top: 1px solid var(--line-soft); }
-.paste-name { display: block; font-size: 13px; color: var(--ink-2); word-break: break-all; }
+.paste-name { display: block; font-size: 15px; color: var(--ink-2); word-break: break-all; }
 .paste-bar {
   display: block; height: 2px; margin: 10px 0 8px;
   background: var(--line-soft); border-radius: 2px; overflow: hidden;
 }
 .paste-bar i { display: block; width: 0; height: 100%; background: var(--cold); }
-.paste-state { font-size: 12px; color: var(--ink-3); }
+.paste-state { font-size: 14px; color: var(--ink-3); }
 .paste-list li.is-done .paste-state { color: var(--cold); }
 .paste-list li.is-done .paste-bar i { background: var(--cold); }
 .paste-list li.is-bad .paste-state { color: var(--warn); }
@@ -457,21 +514,21 @@ p { margin: 0; }
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px; margin: 12px 0 0;
 }
-.paste-meta label { display: block; font-size: 12px; color: var(--ink-3); }
+.paste-meta label { display: block; font-size: 14px; color: var(--ink-3); }
 .paste-meta input {
   width: 100%; margin-top: 6px; padding: 8px 10px;
   font-family: var(--font); font-size: 16px; color: var(--ink);
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
 }
 .paste-meta input:focus-visible { outline: 2px solid var(--cold); outline-offset: 1px; }
-.paste-err { display: block; margin-top: 8px; font-size: 12px; color: var(--warn); }
-.paste-done { margin: 18px 0 0; font-size: 13px; color: var(--cold); }
+.paste-err { display: block; margin-top: 8px; font-size: 14px; color: var(--warn); }
+.paste-done { margin: 18px 0 0; font-size: 15px; color: var(--cold); }
 
 /* 已上传的照片：一行一张，点开就地改三项。改的是云端记录，
    页面重读清单后生效（这类动作要签名，见文件头说明）。 */
 .paste-edit { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
 .paste-edit[hidden] { display: none; }
-.paste-edit-head { margin: 0 0 4px; font-size: 13px; color: var(--ink-2); }
+.paste-edit-head { margin: 0 0 4px; font-size: 15px; color: var(--ink-2); }
 .paste-edit-list { list-style: none; margin: 0; padding: 0; }
 .paste-edit-list li { padding: 14px 0; border-top: 1px solid var(--line-soft); }
 .paste-edit-list li:first-child { border-top: 0; }
@@ -492,30 +549,40 @@ p { margin: 0; }
 .pe-text { min-width: 0; }
 .pe-title {
   display: block;
-  font-size: 13px; line-height: 1.5; color: var(--ink-2);
+  font-size: 15px; line-height: 1.5; color: var(--ink-2);
   transition: color .18s ease;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pe-meta {
   display: block; margin-top: 2px;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--ink-3);
+  font-family: var(--mono); font-size: 12px; letter-spacing: .1em; color: var(--ink-3);
 }
 .pe-form { padding: 14px 0 4px 56px; }
 .pe-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .pe-actions button {
   padding: 8px 14px;
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-  font-family: var(--font); font-size: 12px; color: var(--ink-2); cursor: pointer;
+  font-family: var(--font); font-size: 14px; color: var(--ink-2); cursor: pointer;
   transition: color .18s ease, border-color .18s ease;
 }
 .pe-actions button:hover { color: var(--ink); border-color: rgba(0, 0, 0, .34); }
 .pe-actions button:focus-visible { outline: 2px solid var(--cold); outline-offset: 2px; }
 
+/* 删掉一张：偏危险的动作，单独一支放到右边，只在悬停 / 聚焦时才显出来。
+   带字的按钮一律不做位移或缩放 —— 这里只改颜色和边框。 */
+.pe-del {
+  margin-left: auto;
+  color: var(--ink-3);
+  border-bottom-color: transparent;
+}
+.pe-del:hover { color: var(--warn); border-color: rgba(140, 47, 42, .4); }
+.pe-del.is-armed { color: var(--warn); border-color: var(--warn); }
+
 /* 本机记录：存在这台浏览器里的那一份清单。传完照片就看得见，
    不用等云端、也不用开后台开关 —— 代价是只有这台电脑看得到 */
 .paste-mine { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line-soft); }.paste-mine-row {
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0;
-  font-size: 13px; color: var(--ink-2);
+  font-size: 15px; color: var(--ink-2);
 }
 .paste-mine-row span { flex: 1 1 200px; }
 
@@ -524,7 +591,7 @@ p { margin: 0; }
 .paste-mine-row button {
   padding: 8px 14px; background: var(--card);
   border: 1px solid var(--line); border-radius: var(--radius);
-  font-family: var(--font); font-size: 12px; color: var(--ink-2);
+  font-family: var(--font); font-size: 14px; color: var(--ink-2);
   cursor: pointer; transition: color .18s ease, border-color .18s ease;
 }
 .paste-mine-row button:hover,
@@ -536,7 +603,7 @@ p { margin: 0; }
   display: block; width: 100%; margin-top: 14px; padding: 12px;
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
-  font-size: 12px; line-height: 1.7; color: var(--ink-2);
+  font-size: 14px; line-height: 1.7; color: var(--ink-2);
   white-space: pre; overflow-x: auto; resize: vertical;
 }
 .paste-out[hidden] { display: none; }
@@ -555,18 +622,18 @@ p { margin: 0; }
 
 .foot-col h4 {
   margin: 0 0 14px;
-  font-family: var(--font); font-size: 10px; font-weight: 700;
-  letter-spacing: .18em; text-transform: uppercase;
+  font-family: var(--font); font-size: 12px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
   color: var(--ink);
 }
 .foot-col p {
-  font-size: 12px; font-weight: 300; line-height: 1.9; color: var(--ink-2);
+  font-size: 14px; font-weight: 300; line-height: 1.9; color: var(--ink-2);
 }
 .foot-col a { color: var(--ink); border-bottom: 1px solid var(--line); }
 .foot-col a:hover { color: var(--cold); border-bottom-color: var(--cold); }
 .foot-col button {
   padding: 0; background: none; border: 0; cursor: pointer;
-  font-size: 12px; font-weight: 300; color: var(--ink-2);
+  font-size: 14px; font-weight: 300; color: var(--ink-2);
   transition: color .18s ease;
 }
 .foot-col button:hover { color: var(--ink); }
@@ -577,12 +644,12 @@ p { margin: 0; }
   gap: 16px; flex-wrap: wrap;
   margin-top: 56px; padding-top: 24px;
   border-top: 1px solid var(--line-soft);
-  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .12em;
   color: var(--ink-3);
 }
 .foot-bar button {
   padding: 0; background: none; border: 0; cursor: pointer;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .12em;
   color: var(--ink-2);
   transition: color .18s ease;
 }
@@ -594,7 +661,7 @@ p { margin: 0; }
   position: fixed; inset: 0; z-index: 60;
   display: flex; flex-direction: column;
   padding: 20px 20px 24px;
-  background: rgba(245, 242, 235, .98);
+  background: rgba(255, 255, 255, .98);
 }
 @media (min-width: 900px) { .lb { padding: 28px 48px 32px; } }
 .lb[hidden] { display: none; }
@@ -605,7 +672,7 @@ p { margin: 0; }
   border-bottom: 1px solid var(--line-soft);
 }
 .lb-title {
-  font-size: 10px; font-weight: 700; letter-spacing: .18em;
+  font-size: 12px; font-weight: 700; letter-spacing: .14em;
   text-transform: uppercase; color: var(--ink);
 }
 
@@ -630,7 +697,7 @@ p { margin: 0; }
 
 .lb-note {
   margin: 18px 0 0; max-width: 46ch;
-  font-size: 13px; font-weight: 300; line-height: 1.75; text-align: center;
+  font-size: 15px; font-weight: 300; line-height: 1.75; text-align: center;
   color: var(--ink-2);
 }
 .lb-note[hidden] { display: none; }
@@ -664,12 +731,12 @@ p { margin: 0; }
 }
 .lb-meta span {
   display: block;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .16em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .12em;
   text-transform: uppercase; color: var(--ink-3);
 }
 .lb-meta p {
   margin: 8px 0 0;
-  font-size: 12px; font-weight: 500; letter-spacing: .03em; color: var(--ink);
+  font-size: 14px; font-weight: 500; letter-spacing: .03em; color: var(--ink);
 }
 
 /* ---------- 滚动淡入：只播一次，而且只有透明度 ---------- */
@@ -681,7 +748,7 @@ p { margin: 0; }
   .wrap, .bar-in, .paste { padding-left: 16px; padding-right: 16px; }
   .nav { gap: 16px; }
   .nav a { letter-spacing: .06em; }
-  .hero-kicker { letter-spacing: .2em; }
+  .hero-kicker { letter-spacing: .15em; }
   .mgrid { gap: 0 12px; }
   .m-item { margin-bottom: 36px; }
   .m-cap { gap: 0 10px; }
