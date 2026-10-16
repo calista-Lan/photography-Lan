@@ -44,6 +44,19 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+/* 顶栏是固定的（高 --bar-h），它会盖住页面最上面那一条。
+   点导航跳锚点、或者滚到某个区块时，目标顶端会被压在顶栏底下 ——
+   内容看不见、链接点不到（「贴一张新照片」那行折叠标题点不开就是这个原因）。
+   给所有锚点目标留出顶栏的高度：scroll-padding 加在滚动容器上，
+   scroll-margin 加在目标元素上，两条一起上更稳。 */
+html { scroll-padding-top: calc(var(--bar-h) + 16px); }
+:target { scroll-margin-top: calc(var(--bar-h) + 16px); }
+#photos, #about, #paste { scroll-margin-top: calc(var(--bar-h) + 16px); }
+
+/* 折叠标题本身也要留：有些浏览器（老 Safari / 部分安卓）跳锚点时不是按 <details>
+   这个外框对齐的，而是按里面第一个可见元素（也就是这行 summary）对齐 ——
+   只给外框留高度的话，这行还是会被顶栏压住，点下去打到顶栏上，看起来就是「点了没反应」。 */
+.paste > summary { scroll-margin-top: calc(var(--bar-h) + 16px); }
 html.lb-open, html.lb-open body { overflow: hidden; }
 
 body {
@@ -435,8 +448,13 @@ p { margin: 0; }
   font-size: 15px; font-weight: 300; line-height: 1.8; color: var(--ink-2);
 }
 
-/* ---------- 贴照片（默认折叠，手里有口令才展开） ---------- */
-.paste { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+/* ---------- 贴照片（默认折叠，手里有口令才展开） ----------
+   左右内边距必须和 .wrap 一模一样：这一块不在 .wrap 里面（它直接是 main 的子元素），
+   自己给一套不一样的 padding 就会跟上面的区块对不齐 —— 左边凸出来、右边缩进去。
+   下面这三档是照着 .wrap 抄的，改 .wrap 时这里要一起改。
+   scroll-margin-top 给足顶栏的高度：滚到这一块时那行折叠标题要落在顶栏下面，
+   否则点击会打在固定顶栏上（"点了没反应"就是这么来的）。 */
+.paste { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; scroll-margin-top: calc(var(--bar-h) + 16px); }
 @media (min-width: 900px) { .paste { padding: 0 48px; } }
 @media (min-width: 1200px) { .paste { padding: 0 64px; } }
 
@@ -580,7 +598,8 @@ p { margin: 0; }
 
 /* 本机记录：存在这台浏览器里的那一份清单。传完照片就看得见，
    不用等云端、也不用开后台开关 —— 代价是只有这台电脑看得到 */
-.paste-mine { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line-soft); }.paste-mine-row {
+.paste-mine { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
+.paste-mine-row {
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0;
   font-size: 15px; color: var(--ink-2);
 }
