@@ -477,6 +477,13 @@ p { margin: 0; }
 .paste > summary::after { transform: rotate(90deg); transition: transform .18s ease; }
 .paste[open] > summary::after { transform: rotate(0deg); }
 .paste > summary:hover { color: var(--ink); }
+/* 手机上这一行就是唯一的上传入口，点按区放大到拇指级（上下 22px，最小 64px 高），
+   并给上下各一条更明显的细线 —— 那条 3% 的 hairline 在手机屏幕上几乎看不见，
+   用户根本不知道这里能点。 */
+@media (max-width: 700px) {
+  .paste > summary { min-height: 64px; padding: 22px 0 22px 24px;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-soft); }
+}
 
 .paste-body { padding: 2px 0 40px; }
 .paste-tip { margin: 0 0 20px; font-size: 15px; font-weight: 300; color: var(--ink-2); }
@@ -627,9 +634,11 @@ p { margin: 0; }
 }
 .paste-out[hidden] { display: none; }
 
-/* ---------- 页脚：三栏 + 一条底边 ---------- */
+/* ---------- 页脚：三栏 + 一条底边 ----------
+   底部内边距给到 56px：手机上的微信 / 部分浏览器会在页面底部压一条自己的工具栏，
+   页脚最后一行（包括新加的「贴一张照片」入口）不留出来的话就被它盖住点不到。 */
 .foot {
-  padding: 72px 0 40px;
+  padding: 72px 0 56px;
   border-top: 1px solid var(--line-soft);
 }
 .foot-grid {

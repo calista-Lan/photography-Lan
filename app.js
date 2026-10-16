@@ -738,9 +738,25 @@
     heroYear.hidden = false;
   }
 
+  /* 顶栏是 fixed 的，会盖住页面最上面那一条。跳到某个区块时，目标顶端必须落在
+     顶栏下面，否则内容看不见、链接也点不到（手机微信里「贴照片」点不开就是这个）。
+     CSS 的 scroll-margin-top 在老内核（微信 X5 等）里根本不生效，所以这里自己算位置：
+     目标在文档里的 y 减去顶栏高度再滚过去 —— 全程只用 scrollTo，没有任何新特性依赖。 */
+  function barH() {
+    var bar = document.querySelector(".bar");
+    return bar ? bar.getBoundingClientRect().height : 0;
+  }
+  /* 老内核不认 scrollTo 的 { behavior } 写法，传对象会静默失败，所以先探一下 */
+  var CAN_SMOOTH = !!("scrollBehavior" in document.documentElement.style);
+
   function scrollToId(id) {
     var t = document.getElementById(id);
-    if (t) t.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    if (!t) return;
+    var y = (window.pageYOffset || document.documentElement.scrollTop || 0) +
+            t.getBoundingClientRect().top - (barH() + 16);
+    if (y < 0) y = 0;
+    if (reduce || !CAN_SMOOTH) window.scrollTo(0, y);
+    else window.scrollTo({ top: y, behavior: "smooth" });
   }
 
   if (heroSection) {
@@ -748,6 +764,45 @@
   }
   var heroEnter = document.getElementById("hero-enter");
   if (heroEnter) heroEnter.addEventListener("click", function () { scrollToId("photos"); });
+
+  /* 顶栏那几个锚点也交给 scrollToId：让浏览器自己跳的话，它会把
+     scroll-padding-top 和 scroll-margin-top 叠在一起算，落点比预想的低一截
+     （实测多出整整 80px）。统一走 JS 这条路的落点才是「刚好在顶栏下面」。 */
+  each(document.querySelectorAll('.nav a[href^="#"]'), function (a) {
+    a.addEventListener("click", function (e) {
+      var id = a.getAttribute("href").slice(1);
+      if (document.getElementById(id)) { e.preventDefault(); scrollToId(id); }
+    });
+  });
+
+  /* ---- 贴照片：折叠开关自己接管 ----
+     两件事在这里兜底：
+     1) <details> 的原生展开在个别内核（微信内置浏览器）上会失灵，点了不动；
+     2) 折叠标题要是正好停在 fixed 顶栏底下，点下去打在顶栏上，也像"点了没反应"。
+     所以自己开关；展开后若标题还被顶栏压着，就把它挪到顶栏下面再交给用户。 */
+  var pasteBox = document.getElementById("paste");
+  var pasteSum = pasteBox ? pasteBox.querySelector("summary") : null;
+
+  function openPaste(open) {
+    if (!pasteBox) return;
+    pasteBox.open = (typeof open === "boolean") ? open : !pasteBox.open;
+    if (pasteBox.open && pasteSum) {
+      var top = pasteSum.getBoundingClientRect().top;
+      var want = barH() + 16;
+      if (top < want) window.scrollBy(0, top - want);
+    }
+    if (pasteBox.open) {
+      /* 展开后 sweep 一次，免得里面的东西停在淡入的 0 透明度上 */
+      setTimeout(sweep, 60);
+    }
+  }
+
+  if (pasteSum) {
+    pasteSum.addEventListener("click", function (e) {
+      e.preventDefault();          /* 不让原生再切一次，否则等于切两下、看着像没开 */
+      openPaste();
+    });
+  }
 
   /* ================= 7. 渲染清单 =================
      photos.js 里手写的本地照片（slug 那种）先收进来，
@@ -952,7 +1007,14 @@
   if (footYear) footYear.textContent = String(new Date().getFullYear());
 
   each(document.querySelectorAll("[data-go]"), function (b) {
-    b.addEventListener("click", function () { scrollToId(b.getAttribute("data-go")); });
+    b.addEventListener("click", function () {
+      var id = b.getAttribute("data-go");
+      scrollToId(id);
+      /* 从页脚点「贴照片」过去：滚到位再展开（平滑滚动是异步的，等一下） */
+      if (id === "paste" && pasteBox) {
+        setTimeout(function () { openPaste(true); }, (reduce || !CAN_SMOOTH) ? 0 : 560);
+      }
+    });
   });
 
   var backTop = document.getElementById("back-to-top");
